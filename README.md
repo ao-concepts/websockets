@@ -1,7 +1,7 @@
 # ao-concepts websockets module
 
 ![CI](https://github.com/ao-concepts/websockets/workflows/CI/badge.svg)
-[![codecov](https://codecov.io/gh/ao-concepts/websockets/branch/master/graph/badge.svg?token=AQVUZTRGQS)](https://codecov.io/gh/ao-concepts/websockets)
+[![codecov](https://codecov.io/gh/ao-concepts/websockets/branch/main/graph/badge.svg?token=AQVUZTRGQS)](https://codecov.io/gh/ao-concepts/websockets)
 
 This module provides a websocket handler for usage with [fiber](https://github.com/gofiber/fiber). The handler is a abstraction layer that makes the handling of websocket messages easier.
 
