@@ -61,8 +61,17 @@ func (s *Server) Handler(c *fiber.Ctx) error {
 }
 
 // Subscribe to a websocket event
-func (s *Server) Subscribe(eventName string, listener eventbus.EventChannel) error {
-	return s.bus.Subscribe(eventName, listener)
+func (s *Server) Subscribe(eventName string, handler func(msg *Message)) error {
+	ch := make(chan eventbus.Event)
+
+	go func() {
+		for {
+			msg := <-ch
+			handler(msg.Data.(*Message))
+		}
+	}()
+
+	return s.bus.Subscribe(eventName, ch)
 }
 
 // Publish data to all matching connections

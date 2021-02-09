@@ -26,37 +26,28 @@ if err != nil {
     log.ErrFatal(err)
 }
 
-ch := make(chan eventbus.Event) // @todo: this should be some kind of internal
-if err := server.Subscribe("event:name", ch); err != nil {
-    log.ErrFatal(err)
-}
+server.Subscribe("event:name", func(msg *websockets.Message) {
+    // here you can handle the message
+    c := msg.Connection
 
-go func () {
-    for  {
-        msg := <- ch
-        fmt.Println(msg)
-        // here you can handle the message
-        c := msg.Connection
+    // you can set data to the current session
+    c.Set("key", "value")
+    c.Get("key")
 
-        // you can set data to the current session
-        c.Set("key", "value")
-        c.Get("key")
+    // you can respond directly on the connection that received the message.
+    c.SendMessage(&websockets.Message{
+        Event:   "event:name",
+        Payload: "data",
+    })
 
-        // you can respond directly on the connection that received the message.
-        c.SendMessage(&websockets.Message{
-            Event:   "event:name",
-            Payload: "data",
-        })
-
-        // and you can respond to all connections that match a filter.
-        c.SendMessage(&websockets.Message{
-            Event:   "event:name",
-            Payload: "data",
-        }, func (c *websockets.Connection) bool {
-            return c.Get("key") == true
-        })
-    }
-}()
+    // and you can respond to all connections that match a filter.
+    c.SendMessage(&websockets.Message{
+        Event:   "event:name",
+        Payload: "data",
+    }, func (c *websockets.Connection) bool {
+        return c.Get("key") == true
+    })
+})
 
 app := fiber.New()
 app.Get("/ws", s.Handler)

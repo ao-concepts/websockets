@@ -69,7 +69,7 @@ func (c *Connection) listenForMessages(wc *websocket.Conn) bool {
 
 	msg.Connection = c
 
-	if err := c.s.bus.Publish(msg.Event, msg); err != nil {
+	if err := c.s.bus.Publish(msg.Event, &msg); err != nil {
 		c.s.log.ErrError(err)
 		return false
 	}

@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ao-concepts/eventbus"
 	"github.com/ao-concepts/websockets"
 	"github.com/dchest/uniuri"
 	"github.com/gofiber/fiber/v2"
@@ -63,20 +62,21 @@ func TestServer_Subscribe(t *testing.T) {
 	assert := assert.New(t)
 	s, port := startServer(assert)
 	c := openConnection(port, assert)
+	wg := sync.WaitGroup{}
 
-	ch := make(chan eventbus.Event)
-	assert.Nil(s.Subscribe("test", ch))
+	assert.Nil(s.Subscribe("test", func(msg *websockets.Message) {
+		assert.Equal("test-data", msg.Payload)
+		wg.Done()
+	}))
+
+	wg.Add(1)
 
 	assert.Nil(c.WriteJSON(&websockets.Message{
 		Event:   "test",
 		Payload: "test-data",
 	}))
 
-	rcv := <-ch
-
-	msg, ok := rcv.Data.(websockets.Message)
-	assert.True(ok)
-	assert.Equal("test-data", msg.Payload)
+	wg.Wait()
 	assert.Nil(c.Close())
 }
 
