@@ -67,7 +67,7 @@ func (s *Server) Subscribe(eventName string, handler func(msg *Message)) error {
 	go func() {
 		for {
 			msg := <-ch
-			handler(msg.Data.(*Message))
+			go handler(msg.Data.(*Message))
 		}
 	}()
 
