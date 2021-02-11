@@ -147,9 +147,11 @@ func TestServer_CountConnections(t *testing.T) {
 	assert.Equal(0, s.CountConnections())
 
 	c := openConnection(port, assert)
+	time.Sleep(100 * time.Millisecond)
 	assert.Equal(1, s.CountConnections())
 
 	c2 := openConnection(port, assert)
+	time.Sleep(100 * time.Millisecond)
 	assert.Equal(2, s.CountConnections())
 
 	assert.Nil(c.Close())

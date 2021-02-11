@@ -1,3 +1,8 @@
+# 0.3.0
+
+*   (feature) Add `Locals` function to `Connection`.
+
+
 # 0.2.0
 
 *   (bug) Fix endless loop in connection write loop when a connection is closed.

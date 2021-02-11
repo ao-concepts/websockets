@@ -128,7 +128,7 @@ func (s *Server) removeConnection(conn *Connection) {
 
 // connect a websocket to the server
 func (s *Server) connect(wc *websocket.Conn) {
-	conn := NewConnection(s)
+	conn := NewConnection(s, wc)
 	s.addConnection(conn)
 
 	ctx, cancel := context.WithCancel(context.Background())

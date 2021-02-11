@@ -37,14 +37,14 @@ func openConnection(port int, assert *assert.Assertions) *websocket.Conn {
 func TestNewConnection(t *testing.T) {
 	assert := assert.New(t)
 	s, _ := websockets.New(nil, logging.New(logging.Debug, nil))
-	c := websockets.NewConnection(s)
+	c := websockets.NewConnection(s, nil)
 	assert.NotNil(c)
 }
 
 func TestConnection_Set(t *testing.T) {
 	assert := assert.New(t)
 	s, _ := websockets.New(nil, logging.New(logging.Debug, nil))
-	c := websockets.NewConnection(s)
+	c := websockets.NewConnection(s, nil)
 
 	c.Set("test-key", "test-value")
 	assert.Equal("test-value", c.Get("test-key"))
@@ -55,7 +55,7 @@ func TestConnection_Set(t *testing.T) {
 func TestConnection_Get(t *testing.T) {
 	assert := assert.New(t)
 	s, _ := websockets.New(nil, logging.New(logging.Debug, nil))
-	c := websockets.NewConnection(s)
+	c := websockets.NewConnection(s, nil)
 
 	assert.Nil(c.Get("test-key"))
 
@@ -66,7 +66,7 @@ func TestConnection_Get(t *testing.T) {
 func TestConnection_Publish(t *testing.T) {
 	assert := assert.New(t)
 	s, _ := websockets.New(nil, logging.New(logging.Debug, nil))
-	c := websockets.NewConnection(s)
+	c := websockets.NewConnection(s, nil)
 
 	assert.NotPanics(func() {
 		c.Publish(&websockets.Message{
@@ -74,4 +74,26 @@ func TestConnection_Publish(t *testing.T) {
 			Payload: "test-data",
 		}, nil)
 	})
+}
+
+type wsConnection struct {
+	locals map[string]interface{}
+}
+
+func (c *wsConnection) Locals(key string) interface{} {
+	return c.locals[key]
+}
+
+func TestConnection_Locals(t *testing.T) {
+	assert := assert.New(t)
+	s, _ := websockets.New(nil, logging.New(logging.Debug, nil))
+	conn := &wsConnection{
+		locals: map[string]interface{}{
+			"test-key": "test-value",
+		},
+	}
+	c := websockets.NewConnection(s, conn)
+
+	assert.Equal("test-value", c.Locals("test-key"))
+	assert.Nil(c.Locals("not-available"))
 }

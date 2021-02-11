@@ -10,18 +10,24 @@ import (
 // Connection on a websocket
 type Connection struct {
 	s     *Server
+	wc    wsConnection
 	data  map[string]interface{}
 	write chan Message
 	lock  sync.RWMutex
+}
+
+type wsConnection interface {
+	Locals(key string) interface{}
 }
 
 // Filter function that checks if a connection matches some criteria
 type Filter func(c *Connection) bool
 
 // NewConnection constructor
-func NewConnection(s *Server) *Connection {
+func NewConnection(s *Server, wc wsConnection) *Connection {
 	return &Connection{
 		s:     s,
+		wc:    wc,
 		data:  make(map[string]interface{}),
 		write: make(chan Message, s.config.WriteBufferSize),
 		lock:  sync.RWMutex{},
@@ -33,6 +39,11 @@ func (c *Connection) Set(key string, value interface{}) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.data[key] = value
+}
+
+// Locals gets a local by key from the underlying connection.
+func (c *Connection) Locals(key string) interface{} {
+	return c.wc.Locals(key)
 }
 
 // Get the value of a key on the connection. Returns nil if the key does not exist
