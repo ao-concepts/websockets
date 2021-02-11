@@ -94,6 +94,13 @@ func (s *Server) Publish(m *Message, filter Filter) {
 	}
 }
 
+// CountConnections returns the number of currently active connections
+func (s *Server) CountConnections() int {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	return len(s.connections)
+}
+
 func (s *Server) addConnection(conn *Connection) {
 	s.lock.Lock()
 	defer s.lock.Unlock()

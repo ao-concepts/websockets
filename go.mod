@@ -4,6 +4,7 @@ go 1.15
 
 require (
 	github.com/ao-concepts/eventbus v0.0.1
+	github.com/ao-concepts/logging v0.0.2
 	github.com/dchest/uniuri v0.0.0-20200228104902-7aecb25e1fe5
 	github.com/gofiber/fiber/v2 v2.4.0
 	github.com/gofiber/websocket/v2 v2.0.2

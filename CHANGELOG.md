@@ -1,3 +1,9 @@
+# 0.2.0
+
+*   (bug) Fix endless loop in connection write loop when a connection is closed.
+*   (feature) Add `CountConnections` statistics function to `Server`.
+
+
 # 0.1.1
 
 *   (improvement) Run all subscription handler functions in a new go routine.

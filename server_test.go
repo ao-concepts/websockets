@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ao-concepts/logging"
 	"github.com/ao-concepts/websockets"
 	"github.com/dchest/uniuri"
 	"github.com/gofiber/fiber/v2"
@@ -25,7 +26,7 @@ func TestNewServer(t *testing.T) {
 	assert.NotNil(err)
 
 	// with logger
-	s, err = websockets.New(nil, &testLogger{})
+	s, err = websockets.New(nil, logging.New(logging.Debug, nil))
 	assert.Nil(err)
 	assert.NotNil(s)
 }
@@ -33,7 +34,7 @@ func TestNewServer(t *testing.T) {
 func TestServer_Handler(t *testing.T) {
 	assert := assert.New(t)
 	app := fiber.New()
-	s, _ := websockets.New(nil, &testLogger{})
+	s, _ := websockets.New(nil, logging.New(logging.Debug, nil))
 
 	// no upgrade request
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
@@ -136,4 +137,26 @@ func TestServer_Publish(t *testing.T) {
 
 	assert.Nil(c.Close())
 	assert.Nil(c2.Close())
+}
+
+func TestServer_CountConnections(t *testing.T) {
+	assert := assert.New(t)
+
+	s, port := startServer(assert)
+
+	assert.Equal(0, s.CountConnections())
+
+	c := openConnection(port, assert)
+	assert.Equal(1, s.CountConnections())
+
+	c2 := openConnection(port, assert)
+	assert.Equal(2, s.CountConnections())
+
+	assert.Nil(c.Close())
+	time.Sleep(100 * time.Millisecond)
+	assert.Equal(1, s.CountConnections())
+
+	assert.Nil(c2.Close())
+	time.Sleep(100 * time.Millisecond)
+	assert.Equal(0, s.CountConnections())
 }

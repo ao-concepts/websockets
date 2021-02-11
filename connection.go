@@ -91,7 +91,7 @@ func (c *Connection) publishMessages(ctx context.Context, wc *websocket.Conn) {
 			}
 		case <-ctx.Done():
 			c.s.log.Info("Websocket closed: stopping writer")
-			break
+			return
 		}
 	}
 }
