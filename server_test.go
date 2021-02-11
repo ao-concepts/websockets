@@ -162,3 +162,45 @@ func TestServer_CountConnections(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(0, s.CountConnections())
 }
+
+func TestServer_SetOnConnectionClose(t *testing.T) {
+	assert := assert.New(t)
+
+	s, port := startServer(assert)
+	c := openConnection(port, assert)
+
+	wg := sync.WaitGroup{}
+
+	s.SetOnConnectionClose(func(c *websockets.Connection) {
+		wg.Done()
+	})
+
+	wg.Add(1)
+	assert.Nil(c.Close())
+
+	wg.Wait()
+}
+
+func TestServer_Shutdown(t *testing.T) {
+	assert := assert.New(t)
+
+	s, port := startServer(assert)
+	openConnection(port, assert)
+	openConnection(port, assert)
+	openConnection(port, assert)
+
+	time.Sleep(100 * time.Millisecond)
+	assert.Equal(3, s.CountConnections())
+
+	wg := sync.WaitGroup{}
+
+	s.SetOnConnectionClose(func(c *websockets.Connection) {
+		wg.Done()
+	})
+
+	wg.Add(3)
+	s.Shutdown()
+	wg.Wait()
+
+	assert.Equal(0, s.CountConnections())
+}

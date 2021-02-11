@@ -19,11 +19,13 @@ type Message struct {
 
 // Server for websockets
 type Server struct {
-	lock        sync.RWMutex
-	log         Logger
-	bus         *eventbus.Bus
-	connections []*Connection
-	config      *ServerConfig
+	lock              sync.RWMutex
+	log               Logger
+	bus               *eventbus.Bus
+	connections       []*Connection
+	config            *ServerConfig
+	onConnectionClose OnConnectionClose
+	isStopped         bool
 }
 
 // ServerConfig configuration of the server
@@ -31,6 +33,9 @@ type ServerConfig struct {
 	ReadBufferSize  int
 	WriteBufferSize int
 }
+
+// OnConnectionClose is ecuted when a connection is closed
+type OnConnectionClose func(c *Connection)
 
 // New server constructor
 func New(config *ServerConfig, log Logger) (s *Server, err error) {
@@ -51,6 +56,19 @@ func New(config *ServerConfig, log Logger) (s *Server, err error) {
 		bus:    eventbus.New(nil, false),
 		lock:   sync.RWMutex{},
 	}, nil
+}
+
+// Shutdown gracefully stopps the server
+func (s *Server) Shutdown() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	for _, conn := range s.connections {
+		s.onConnectionClose(conn)
+	}
+
+	s.connections = nil
+	s.isStopped = true
 }
 
 // Handler that reads from and writes to a websocket connection
@@ -94,6 +112,11 @@ func (s *Server) Publish(m *Message, filter Filter) {
 	}
 }
 
+// SetOnConnectionClose sets the function that is executed when a connection is closed
+func (s *Server) SetOnConnectionClose(fn OnConnectionClose) {
+	s.onConnectionClose = fn
+}
+
 // CountConnections returns the number of currently active connections
 func (s *Server) CountConnections() int {
 	s.lock.RLock()
@@ -128,6 +151,11 @@ func (s *Server) removeConnection(conn *Connection) {
 
 // connect a websocket to the server
 func (s *Server) connect(wc *websocket.Conn) {
+	if s.isStopped {
+		wc.Close()
+		return
+	}
+
 	conn := NewConnection(s, wc)
 	s.addConnection(conn)
 
@@ -138,6 +166,10 @@ func (s *Server) connect(wc *websocket.Conn) {
 
 	for {
 		if !conn.listenForMessages(wc) {
+			if s.onConnectionClose != nil {
+				s.onConnectionClose(conn)
+			}
+
 			s.removeConnection(conn)
 			break
 		}

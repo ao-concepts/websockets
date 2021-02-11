@@ -1,3 +1,9 @@
+# 0.4.0
+
+*   (feature) Add `Shutdown` to `Server`.
+*   (feature) Add `SetOnConnectionClose` to `Server`.
+
+
 # 0.3.0
 
 *   (feature) Add `Locals` function to `Connection`.
