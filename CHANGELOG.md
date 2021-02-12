@@ -1,3 +1,8 @@
+# 0.4.1
+
+*   (bug) Do not add `Cnnection` to json of `Message`.
+
+
 # 0.4.0
 
 *   (feature) Add `Shutdown` to `Server`.

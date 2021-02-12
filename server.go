@@ -14,7 +14,7 @@ import (
 type Message struct {
 	Event      string      `json:"event"`
 	Payload    interface{} `json:"payload"`
-	Connection *Connection
+	Connection *Connection `json:"-"`
 }
 
 // Server for websockets
