@@ -25,6 +25,8 @@ type Server struct {
 	connections       []*Connection
 	config            *ServerConfig
 	onConnectionClose OnConnectionClose
+	ctx               context.Context
+	cancel            context.CancelFunc
 	isStopped         bool
 }
 
@@ -50,11 +52,15 @@ func New(config *ServerConfig, log Logger) (s *Server, err error) {
 		}
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &Server{
 		config: config,
 		log:    log,
 		bus:    eventbus.New(nil, false),
 		lock:   sync.RWMutex{},
+		ctx:    ctx,
+		cancel: cancel,
 	}, nil
 }
 
@@ -64,9 +70,12 @@ func (s *Server) Shutdown() {
 	defer s.lock.Unlock()
 
 	for _, conn := range s.connections {
-		s.onConnectionClose(conn)
+		if s.onConnectionClose != nil {
+			s.onConnectionClose(conn)
+		}
 	}
 
+	s.cancel()
 	s.connections = nil
 	s.isStopped = true
 }
@@ -82,12 +91,7 @@ func (s *Server) Handler(c *fiber.Ctx) error {
 func (s *Server) Subscribe(eventName string, handler func(msg *Message)) error {
 	ch := make(chan eventbus.Event)
 
-	go func() {
-		for {
-			msg := <-ch
-			go handler(msg.Data.(*Message))
-		}
-	}()
+	go s.handleSubscription(ch, handler)
 
 	return s.bus.Subscribe(eventName, ch)
 }
@@ -172,6 +176,25 @@ func (s *Server) connect(wc *websocket.Conn) {
 
 			s.removeConnection(conn)
 			break
+		}
+	}
+}
+
+func (s *Server) handleSubscription(ch chan eventbus.Event, handler func(msg *Message)) {
+	for {
+		select {
+		case msg := <-ch:
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						s.log.Error("websocket: recovering subscription from panic: %v", r)
+					}
+				}()
+
+				handler(msg.Data.(*Message))
+			}()
+		case <-s.ctx.Done():
+			return
 		}
 	}
 }

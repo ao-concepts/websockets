@@ -1,3 +1,8 @@
+# 0.4.2
+
+*   (bug) Recover from panics in subscribers.
+
+
 # 0.4.1
 
 *   (bug) Do not add `Cnnection` to json of `Message`.

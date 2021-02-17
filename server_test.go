@@ -78,6 +78,29 @@ func TestServer_Subscribe(t *testing.T) {
 	}))
 
 	wg.Wait()
+
+	// test panic recovery
+	assert.Nil(s.Subscribe("recover", func(msg *websockets.Message) {
+		defer wg.Done()
+		if msg.Payload == "panic" {
+			panic("test")
+		}
+	}))
+
+	wg.Add(1)
+	assert.Nil(c.WriteJSON(&websockets.Message{
+		Event:   "recover",
+		Payload: "panic",
+	}))
+	wg.Wait()
+
+	wg.Add(1)
+	assert.Nil(c.WriteJSON(&websockets.Message{
+		Event:   "recover",
+		Payload: "no-panic",
+	}))
+	wg.Wait()
+
 	assert.Nil(c.Close())
 }
 
@@ -197,6 +220,9 @@ func TestServer_Shutdown(t *testing.T) {
 	s.SetOnConnectionClose(func(c *websockets.Connection) {
 		wg.Done()
 	})
+
+	assert.Nil(s.Subscribe("test", func(msg *websockets.Message) {}))
+	assert.Nil(s.Subscribe("test-2", func(msg *websockets.Message) {}))
 
 	wg.Add(3)
 	s.Shutdown()
