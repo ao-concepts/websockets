@@ -200,7 +200,18 @@ func TestServer_SetOnConnectionClose(t *testing.T) {
 
 	wg.Add(1)
 	assert.Nil(c.Close())
+	wg.Wait()
 
+	// test panic
+	c2 := openConnection(port, assert)
+
+	s.SetOnConnectionClose(func(c *websockets.Connection) {
+		defer wg.Done()
+		panic("test")
+	})
+
+	wg.Add(1)
+	assert.Nil(c2.Close())
 	wg.Wait()
 }
 

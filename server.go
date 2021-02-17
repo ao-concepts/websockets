@@ -118,7 +118,15 @@ func (s *Server) Publish(m *Message, filter Filter) {
 
 // SetOnConnectionClose sets the function that is executed when a connection is closed
 func (s *Server) SetOnConnectionClose(fn OnConnectionClose) {
-	s.onConnectionClose = fn
+	s.onConnectionClose = func(c *Connection) {
+		defer func() {
+			if r := recover(); r != nil {
+				s.log.Error("websocket: recovering connection close from panic: %v", r)
+			}
+		}()
+
+		fn(c)
+	}
 }
 
 // CountConnections returns the number of currently active connections

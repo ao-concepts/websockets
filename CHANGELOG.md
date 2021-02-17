@@ -1,3 +1,8 @@
+# 0.4.3
+
+*   (bug) Recover from panics in `onConnectionClose`.
+
+
 # 0.4.2
 
 *   (bug) Recover from panics in subscribers.
