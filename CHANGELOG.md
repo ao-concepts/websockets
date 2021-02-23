@@ -1,3 +1,8 @@
+# 0.4.6
+
+*   (bug) Recover and exit write loop of connection.
+
+
 # 0.4.5
 
 *   (bug) Do not try to close connections with errors.

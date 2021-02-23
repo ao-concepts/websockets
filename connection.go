@@ -90,6 +90,12 @@ func (c *Connection) listenForMessages(wc *websocket.Conn) bool {
 
 // publish messages to a websocket connection
 func (c *Connection) publishMessages(ctx context.Context, wc *websocket.Conn) {
+	defer func() {
+		if r := recover(); r != nil {
+			c.s.log.Warn("websocket: ending connection after panic: %v", r)
+		}
+	}()
+
 	for {
 		select {
 		case msg := <-c.write:
