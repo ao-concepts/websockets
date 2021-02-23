@@ -95,11 +95,7 @@ func (c *Connection) publishMessages(ctx context.Context, wc *websocket.Conn) {
 		case msg := <-c.write:
 			if err := wc.WriteJSON(msg); err != nil {
 				c.s.log.ErrError(err)
-
-				if err := wc.Close(); err != nil {
-					c.s.log.ErrError(err)
-					return
-				}
+				return
 			}
 		case <-ctx.Done():
 			c.s.log.Info("Websocket closed: stopping writer")

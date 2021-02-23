@@ -1,3 +1,8 @@
+# 0.4.5
+
+*   (bug) Do not try to close connections with errors.
+
+
 # 0.4.4
 
 *   (bug) Return on connection write errors.
