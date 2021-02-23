@@ -25,8 +25,11 @@ jobs:
       - name: fmt-check
         run: make fmt-check
 
-      - name: test
-        run: go test ./... -coverprofile=coverage.txt -covermode=atomic -count=1 -race -timeout 15s
+      - name: test-race
+        run: make test-race
+
+      - name: coverage
+        run: go test ./... -coverprofile=coverage.txt -covermode=atomic
 
       - name: upload coverage
         uses: codecov/codecov-action@v1
