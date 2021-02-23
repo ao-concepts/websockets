@@ -69,31 +69,47 @@ func (c *Connection) Publish(m *Message, filter Filter) {
 }
 
 // returns false on errors
-func (c *Connection) listenForMessages(wc *websocket.Conn) bool {
-	var msg Message
+func (c *Connection) listenForMessages(ctx context.Context, wc *websocket.Conn, onEnd func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			c.s.log.Warn("websocket: ending connection read after panic: %v", r)
+		}
 
-	if err := wc.ReadJSON(&msg); err != nil {
-		c.s.log.ErrInfo(err)
+		onEnd()
+	}()
 
-		return false
+	for {
+		select {
+		case <-ctx.Done():
+			c.s.log.Info("Websocket closed: stopping reader")
+			return
+		default:
+			var msg Message
+
+			if err := wc.ReadJSON(&msg); err != nil {
+				c.s.log.ErrInfo(err)
+				return
+			}
+
+			msg.Connection = c
+
+			if err := c.s.bus.Publish(msg.Event, &msg); err != nil {
+				c.s.log.ErrError(err)
+				return
+			}
+		}
 	}
 
-	msg.Connection = c
-
-	if err := c.s.bus.Publish(msg.Event, &msg); err != nil {
-		c.s.log.ErrError(err)
-		return false
-	}
-
-	return true
 }
 
 // publish messages to a websocket connection
-func (c *Connection) publishMessages(ctx context.Context, wc *websocket.Conn) {
+func (c *Connection) publishMessages(ctx context.Context, wc *websocket.Conn, onEnd func()) {
 	defer func() {
 		if r := recover(); r != nil {
-			c.s.log.Warn("websocket: ending connection after panic: %v", r)
+			c.s.log.Warn("websocket: ending connection write after panic: %v", r)
 		}
+
+		onEnd()
 	}()
 
 	for {

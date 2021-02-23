@@ -172,20 +172,30 @@ func (s *Server) connect(wc *websocket.Conn) {
 	s.addConnection(conn)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
-	go conn.publishMessages(ctx, wc)
+	endCalled := false
+	sync := sync.Mutex{}
+	onEnd := func() {
+		sync.Lock()
+		defer sync.Unlock()
 
-	for {
-		if !conn.listenForMessages(wc) {
-			if s.onConnectionClose != nil {
-				s.onConnectionClose(conn)
-			}
-
-			s.removeConnection(conn)
-			break
+		if endCalled {
+			return
 		}
+
+		endCalled = true
+
+		cancel()
+
+		if s.onConnectionClose != nil {
+			s.onConnectionClose(conn)
+		}
+
+		s.removeConnection(conn)
 	}
+
+	go conn.publishMessages(ctx, wc, onEnd)
+	conn.listenForMessages(ctx, wc, onEnd)
 }
 
 func (s *Server) handleSubscription(ch chan eventbus.Event, handler func(msg *Message)) {
