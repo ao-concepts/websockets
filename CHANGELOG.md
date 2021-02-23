@@ -1,3 +1,8 @@
+# 0.4.4
+
+*   (bug) Return on connection write errors.
+
+
 # 0.4.3
 
 *   (bug) Recover from panics in `onConnectionClose`.

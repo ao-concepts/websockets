@@ -98,6 +98,7 @@ func (c *Connection) publishMessages(ctx context.Context, wc *websocket.Conn) {
 
 				if err := wc.Close(); err != nil {
 					c.s.log.ErrError(err)
+					return
 				}
 			}
 		case <-ctx.Done():
