@@ -66,15 +66,17 @@ func TestServer_Subscribe(t *testing.T) {
 	wg := sync.WaitGroup{}
 
 	assert.Nil(s.Subscribe("test", func(msg *websockets.Message) {
-		assert.Equal("test-data", msg.Payload)
+		assert.Equal("test-data", msg.Payload["value"])
 		wg.Done()
 	}))
 
 	wg.Add(1)
 
 	assert.Nil(c.WriteJSON(&websockets.Message{
-		Event:   "test",
-		Payload: "test-data",
+		Event: "test",
+		Payload: websockets.Payload{
+			"value": "test-data",
+		},
 	}))
 
 	wg.Wait()
@@ -82,22 +84,26 @@ func TestServer_Subscribe(t *testing.T) {
 	// test panic recovery
 	assert.Nil(s.Subscribe("recover", func(msg *websockets.Message) {
 		defer wg.Done()
-		if msg.Payload == "panic" {
+		if msg.Payload["value"] == "panic" {
 			panic("test")
 		}
 	}))
 
 	wg.Add(1)
 	assert.Nil(c.WriteJSON(&websockets.Message{
-		Event:   "recover",
-		Payload: "panic",
+		Event: "recover",
+		Payload: websockets.Payload{
+			"value": "panic",
+		},
 	}))
 	wg.Wait()
 
 	wg.Add(1)
 	assert.Nil(c.WriteJSON(&websockets.Message{
-		Event:   "recover",
-		Payload: "no-panic",
+		Event: "recover",
+		Payload: websockets.Payload{
+			"value": "no-panic",
+		},
 	}))
 	wg.Wait()
 
@@ -115,13 +121,15 @@ func TestServer_Publish(t *testing.T) {
 	go func(c *websocket.Conn) {
 		var msg websockets.Message
 		assert.Nil(c.ReadJSON(&msg))
-		assert.Equal("test-data", msg.Payload)
+		assert.Equal("test-data", msg.Payload["value"])
 		wg.Done()
 	}(c)
 
 	s.Publish(&websockets.Message{
-		Event:   "test",
-		Payload: "test-data",
+		Event: "test",
+		Payload: websockets.Payload{
+			"value": "test-data",
+		},
 	}, nil)
 
 	wg.Wait()
@@ -142,16 +150,20 @@ func TestServer_Publish(t *testing.T) {
 	}(c2)
 
 	s.Publish(&websockets.Message{
-		Event:   "filter-test",
-		Payload: "filter-test-data",
+		Event: "filter-test",
+		Payload: websockets.Payload{
+			"value": "filter-test-data",
+		},
 	}, func(c *websockets.Connection) bool {
 		return false
 	})
 
 	// filter (false)
 	s.Publish(&websockets.Message{
-		Event:   "filter-test",
-		Payload: "filter-test-data",
+		Event: "filter-test",
+		Payload: websockets.Payload{
+			"value": "filter-test-data",
+		},
 	}, func(c *websockets.Connection) bool {
 		return true
 	})

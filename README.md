@@ -30,6 +30,9 @@ server.Subscribe("event:name", func(msg *websockets.Message) {
     // here you can handle the message
     c := msg.Connection
 
+    // access the payload
+    fmt.Println(msg.Payload["value"])
+
     // you can set data to the current session
     c.Set("key", "value")
     c.Get("key")
@@ -37,13 +40,17 @@ server.Subscribe("event:name", func(msg *websockets.Message) {
     // you can respond directly on the connection that received the message.
     c.SendMessage(&websockets.Message{
         Event:   "event:name",
-        Payload: "data",
+        Payload: websockets.Payload{
+            "value": "data",
+        },
     })
 
     // and you can respond to all connections that match a filter.
     c.SendMessage(&websockets.Message{
         Event:   "event:name",
-        Payload: "data",
+        Payload: websockets.Payload{
+            "value": "data",
+        },
     }, func (c *websockets.Connection) bool {
         return c.Get("key") == true
     })

@@ -13,9 +13,12 @@ import (
 // Message that is received or sent via a websocket.
 type Message struct {
 	Event      string      `json:"event"`
-	Payload    interface{} `json:"payload"`
+	Payload    Payload     `json:"payload"`
 	Connection *Connection `json:"-"`
 }
+
+// Payload send by a websocket connection
+type Payload map[string]interface{}
 
 // Server for websockets
 type Server struct {
@@ -97,13 +100,13 @@ func (s *Server) Subscribe(eventName string, handler func(msg *Message)) error {
 }
 
 // Publish data to all matching connections
-func (s *Server) Publish(m *Message, filter Filter) {
+func (s *Server) Publish(msg *Message, filter Filter) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
 	if filter == nil {
 		for _, c := range s.connections {
-			c.SendMessage(m)
+			c.SendMessage(msg)
 		}
 
 		return
@@ -111,7 +114,7 @@ func (s *Server) Publish(m *Message, filter Filter) {
 
 	for _, c := range s.connections {
 		if filter(c) {
-			c.SendMessage(m)
+			c.SendMessage(msg)
 		}
 	}
 }

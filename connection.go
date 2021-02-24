@@ -59,13 +59,13 @@ func (c *Connection) Get(key string) interface{} {
 }
 
 // SendMessage via this connection
-func (c *Connection) SendMessage(m *Message) {
-	c.write <- *m
+func (c *Connection) SendMessage(msg *Message) {
+	c.write <- *msg
 }
 
 // Publish a message to all matching connections
-func (c *Connection) Publish(m *Message, filter Filter) {
-	c.s.Publish(m, filter)
+func (c *Connection) Publish(msg *Message, filter Filter) {
+	c.s.Publish(msg, filter)
 }
 
 // returns false on errors

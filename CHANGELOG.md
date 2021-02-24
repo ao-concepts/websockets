@@ -1,3 +1,8 @@
+# 0.5.0
+
+*   (bc) Introduce `Payload` type for `Message` payload.
+
+
 # 0.4.7
 
 *   (bug) Close connections correctly.

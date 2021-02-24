@@ -70,8 +70,10 @@ func TestConnection_Publish(t *testing.T) {
 
 	assert.NotPanics(func() {
 		c.Publish(&websockets.Message{
-			Event:   "test",
-			Payload: "test-data",
+			Event: "test",
+			Payload: websockets.Payload{
+				"value": "test-data",
+			},
 		}, nil)
 	})
 }
