@@ -3,20 +3,22 @@ package websockets
 import (
 	"context"
 	"sync"
-
-	"github.com/gofiber/websocket/v2"
 )
 
 // Connection on a websocket
 type Connection struct {
 	s     *Server
-	wc    wsConnection
+	wc    WebsocketConn
 	data  map[string]interface{}
 	write chan Message
 	lock  sync.RWMutex
 }
 
-type wsConnection interface {
+// WebsocketConn websocket connection interface
+type WebsocketConn interface {
+	ReadJSON(v interface{}) error
+	WriteJSON(v interface{}) error
+	Close() error
 	Locals(key string) interface{}
 }
 
@@ -24,7 +26,7 @@ type wsConnection interface {
 type Filter func(c *Connection) bool
 
 // NewConnection constructor
-func NewConnection(s *Server, wc wsConnection) *Connection {
+func NewConnection(s *Server, wc WebsocketConn) *Connection {
 	return &Connection{
 		s:     s,
 		wc:    wc,
@@ -69,7 +71,7 @@ func (c *Connection) Publish(msg *Message, filter Filter) {
 }
 
 // returns false on errors
-func (c *Connection) listenForMessages(ctx context.Context, wc *websocket.Conn, onEnd func()) {
+func (c *Connection) listenForMessages(ctx context.Context, wc WebsocketConn, onEnd func()) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.s.log.Warn("websocket: ending connection read after panic: %v", r)
@@ -103,7 +105,7 @@ func (c *Connection) listenForMessages(ctx context.Context, wc *websocket.Conn, 
 }
 
 // publish messages to a websocket connection
-func (c *Connection) publishMessages(ctx context.Context, wc *websocket.Conn, onEnd func()) {
+func (c *Connection) publishMessages(ctx context.Context, wc WebsocketConn, onEnd func()) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.s.log.Warn("websocket: ending connection write after panic: %v", r)

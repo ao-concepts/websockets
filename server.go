@@ -165,7 +165,7 @@ func (s *Server) removeConnection(conn *Connection) {
 }
 
 // connect a websocket to the server
-func (s *Server) connect(wc *websocket.Conn) {
+func (s *Server) connect(wc WebsocketConn) {
 	if s.isStopped {
 		wc.Close()
 		return

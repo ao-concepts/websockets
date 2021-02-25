@@ -66,10 +66,11 @@ func TestConnection_Get(t *testing.T) {
 func TestConnection_Publish(t *testing.T) {
 	assert := assert.New(t)
 	s, _ := websockets.New(nil, logging.New(logging.Debug, nil))
-	c := websockets.NewConnection(s, nil)
+
+	conn := websockets.NewConnection(s, nil)
 
 	assert.NotPanics(func() {
-		c.Publish(&websockets.Message{
+		conn.Publish(&websockets.Message{
 			Event: "test",
 			Payload: websockets.Payload{
 				"value": "test-data",
@@ -78,24 +79,14 @@ func TestConnection_Publish(t *testing.T) {
 	})
 }
 
-type wsConnection struct {
-	locals map[string]interface{}
-}
-
-func (c *wsConnection) Locals(key string) interface{} {
-	return c.locals[key]
-}
-
 func TestConnection_Locals(t *testing.T) {
 	assert := assert.New(t)
 	s, _ := websockets.New(nil, logging.New(logging.Debug, nil))
-	conn := &wsConnection{
-		locals: map[string]interface{}{
-			"test-key": "test-value",
-		},
-	}
-	c := websockets.NewConnection(s, conn)
+	wsConn := websockets.NewWebsocketConnMock()
+	wsConn.LocalData["test-key"] = "test-value"
 
-	assert.Equal("test-value", c.Locals("test-key"))
-	assert.Nil(c.Locals("not-available"))
+	conn := websockets.NewConnection(s, wsConn)
+
+	assert.Equal("test-value", conn.Locals("test-key"))
+	assert.Nil(conn.Locals("not-available"))
 }

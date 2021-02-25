@@ -1,3 +1,8 @@
+# 0.6.0
+
+*   (feature) Add `WebsocketConn` and a matching `WebsocketConnMock` for advanced test usage.
+
+
 # 0.5.0
 
 *   (bc) Introduce `Payload` type for `Message` payload.
