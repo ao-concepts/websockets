@@ -1,3 +1,8 @@
+# 0.7.0
+
+*   (feature) Make `Server.Connect` public for testing purposes.
+
+
 # 0.6.0
 
 *   (feature) Add `WebsocketConn` and a matching `WebsocketConnMock` for advanced test usage.

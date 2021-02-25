@@ -86,7 +86,7 @@ func (s *Server) Shutdown() {
 // Handler that reads from and writes to a websocket connection
 func (s *Server) Handler(c *fiber.Ctx) error {
 	return websocket.New(func(wc *websocket.Conn) {
-		s.connect(wc)
+		s.Connect(wc)
 	})(c)
 }
 
@@ -164,8 +164,8 @@ func (s *Server) removeConnection(conn *Connection) {
 	}
 }
 
-// connect a websocket to the server
-func (s *Server) connect(wc WebsocketConn) {
+// Connect a websocket to the server
+func (s *Server) Connect(wc WebsocketConn) {
 	if s.isStopped {
 		wc.Close()
 		return
