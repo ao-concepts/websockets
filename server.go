@@ -86,7 +86,9 @@ func (s *Server) Shutdown() {
 // Handler that reads from and writes to a websocket connection
 func (s *Server) Handler(c *fiber.Ctx) error {
 	return websocket.New(func(wc *websocket.Conn) {
-		s.Connect(wc)
+		conn := NewConnection(s, wc)
+		s.addConnection(conn)
+		s.Connect(conn)
 	})(c)
 }
 
@@ -165,14 +167,11 @@ func (s *Server) removeConnection(conn *Connection) {
 }
 
 // Connect a websocket to the server
-func (s *Server) Connect(wc WebsocketConn) {
+func (s *Server) Connect(conn *Connection) {
 	if s.isStopped {
-		wc.Close()
+		conn.wc.Close()
 		return
 	}
-
-	conn := NewConnection(s, wc)
-	s.addConnection(conn)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -197,8 +196,8 @@ func (s *Server) Connect(wc WebsocketConn) {
 		s.removeConnection(conn)
 	}
 
-	go conn.publishMessages(ctx, wc, onEnd)
-	conn.listenForMessages(ctx, wc, onEnd)
+	go conn.publishMessages(ctx, conn.wc, onEnd)
+	conn.listenForMessages(ctx, conn.wc, onEnd)
 }
 
 func (s *Server) handleSubscription(ch chan eventbus.Event, handler func(msg *Message)) {

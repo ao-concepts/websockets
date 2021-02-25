@@ -1,3 +1,8 @@
+# 0.7.1
+
+*   (bug) Fix `Server.Connect` to accept `Connections`.
+
+
 # 0.7.0
 
 *   (feature) Make `Server.Connect` public for testing purposes.
