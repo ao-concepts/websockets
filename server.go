@@ -86,15 +86,9 @@ func (s *Server) Shutdown() {
 // Handler that reads from and writes to a websocket connection
 func (s *Server) Handler(c *fiber.Ctx) error {
 	return websocket.New(func(wc *websocket.Conn) {
-		s.log.Debug("websocket: connect start")
 		conn := NewConnection(s, wc)
-		s.log.Debug("websocket: connection created")
-		s.log.Debug("websocket: conn %T", conn)
-		s.log.Debug("websocket: server %T", s)
 		s.addConnection(conn)
-		s.log.Debug("websocket: connection added")
 		s.Connect(conn)
-		s.log.Debug("websocket: connected")
 	})(c)
 }
 
@@ -148,13 +142,9 @@ func (s *Server) CountConnections() int {
 }
 
 func (s *Server) addConnection(conn *Connection) {
-	s.log.Debug("websocket: addConnection start")
 	s.lock.Lock()
-	s.log.Debug("websocket: addConnection lock")
 	defer s.lock.Unlock()
-	s.log.Debug("websocket: addConnection append")
 	s.connections = append(s.connections, conn)
-	s.log.Debug("websocket: addConnection after append")
 }
 
 func (s *Server) removeConnection(conn *Connection) {
