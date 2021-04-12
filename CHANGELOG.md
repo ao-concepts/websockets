@@ -1,3 +1,8 @@
+# 0.7.5
+
+*   (bug) Fix Always close context on ended connections.
+
+
 # 0.7.1
 
 *   (bug) Fix `Server.Connect` to accept `Connections`.

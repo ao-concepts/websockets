@@ -180,14 +180,13 @@ func (s *Server) Connect(conn *Connection) {
 	onEnd := func() {
 		sync.Lock()
 		defer sync.Unlock()
+		defer cancel()
 
 		if endCalled {
 			return
 		}
 
 		endCalled = true
-
-		cancel()
 
 		if s.onConnectionClose != nil {
 			s.onConnectionClose(conn)
