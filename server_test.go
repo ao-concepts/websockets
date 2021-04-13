@@ -59,9 +59,49 @@ func TestServer_Handler(t *testing.T) {
 	openConnection(port, assert)
 }
 
+func TestServer_BrokenPipe(t *testing.T) {
+	assert := assert.New(t)
+	s, port := startServer(assert)
+	ch := make(chan bool)
+	wg := sync.WaitGroup{}
+
+	s.SetOnConnectionClose(func(c *websockets.Connection) {
+		wg.Done()
+	})
+
+	go func() {
+		for {
+			select {
+			case <-ch:
+				return
+			default:
+				s.Publish(&websockets.Message{
+					Event: "test",
+				}, nil)
+			}
+		}
+	}()
+
+	wg.Add(1)
+	c := openConnection(port, assert)
+	time.Sleep(10 * time.Millisecond)
+	assert.Nil(c.Close())
+
+	time.Sleep(10 * time.Millisecond)
+	wg.Wait()
+
+	wg.Add(1)
+	c2 := openConnection(port, assert)
+	assert.NotNil(c2)
+	assert.Nil(c2.Close())
+	ch <- true
+	wg.Wait()
+}
+
 func TestServer_Subscribe(t *testing.T) {
 	assert := assert.New(t)
 	s, port := startServer(assert)
+	time.Sleep(10 * time.Millisecond)
 	c := openConnection(port, assert)
 	wg := sync.WaitGroup{}
 

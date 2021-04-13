@@ -1,3 +1,8 @@
+# 0.7.7
+
+*   (bug) Fix race condition when writing to client side ended connections.
+
+
 # 0.7.6
 
 *   (internal) Add debug logging.

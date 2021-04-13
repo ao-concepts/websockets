@@ -86,13 +86,9 @@ func (s *Server) Shutdown() {
 // Handler that reads from and writes to a websocket connection
 func (s *Server) Handler(c *fiber.Ctx) error {
 	return websocket.New(func(wc *websocket.Conn) {
-		s.log.Debug("websocket: Create connection...")
 		conn := NewConnection(s, wc)
-		s.log.Debug("websocket: Add connection...")
 		s.addConnection(conn)
-		s.log.Debug("websocket: Connect...")
 		s.Connect(conn)
-		s.log.Debug("websocket: Connection established")
 	})(c)
 }
 
@@ -110,15 +106,19 @@ func (s *Server) Publish(msg *Message, filter Filter) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
+	go publishToConnections(msg, filter, s.connections)
+}
+
+func publishToConnections(msg *Message, filter Filter, connections []*Connection) {
 	if filter == nil {
-		for _, c := range s.connections {
+		for _, c := range connections {
 			c.SendMessage(msg)
 		}
 
 		return
 	}
 
-	for _, c := range s.connections {
+	for _, c := range connections {
 		if filter(c) {
 			c.SendMessage(msg)
 		}
