@@ -1,3 +1,8 @@
+# 0.7.6
+
+*   (internal) Add debug logging.
+
+
 # 0.7.5
 
 *   (bug) Fix Always close context on ended connections.

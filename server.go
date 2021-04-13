@@ -86,9 +86,13 @@ func (s *Server) Shutdown() {
 // Handler that reads from and writes to a websocket connection
 func (s *Server) Handler(c *fiber.Ctx) error {
 	return websocket.New(func(wc *websocket.Conn) {
+		s.log.Debug("websocket: Create connection...")
 		conn := NewConnection(s, wc)
+		s.log.Debug("websocket: Add connection...")
 		s.addConnection(conn)
+		s.log.Debug("websocket: Connect...")
 		s.Connect(conn)
+		s.log.Debug("websocket: Connection established")
 	})(c)
 }
 
