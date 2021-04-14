@@ -1,3 +1,8 @@
+# 0.7.8
+
+*   (bug) Fix race condition when writing to client side ended connections (part 2).
+
+
 # 0.7.7
 
 *   (bug) Fix race condition when writing to client side ended connections.

@@ -103,10 +103,13 @@ func (s *Server) Subscribe(eventName string, handler func(msg *Message)) error {
 
 // Publish data to all matching connections
 func (s *Server) Publish(msg *Message, filter Filter) {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
+	var connections []*Connection
 
-	go publishToConnections(msg, filter, s.connections)
+	s.lock.RLock()
+	connections = append(connections, s.connections...)
+	s.lock.RUnlock()
+
+	go publishToConnections(msg, filter, connections)
 }
 
 func publishToConnections(msg *Message, filter Filter, connections []*Connection) {
