@@ -219,23 +219,26 @@ func TestServer_CountConnections(t *testing.T) {
 
 	s, port := startServer(assert)
 
-	assert.Equal(0, s.CountConnections())
+	assert.Equal(0, s.CountConnections(nil))
 
 	c := openConnection(port, assert)
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(1, s.CountConnections())
+	assert.Equal(1, s.CountConnections(nil))
 
 	c2 := openConnection(port, assert)
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(2, s.CountConnections())
+	assert.Equal(2, s.CountConnections(nil))
+	assert.Equal(0, s.CountConnections(func(c *websockets.Connection) bool {
+		return false
+	}))
 
 	assert.Nil(c.Close())
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(1, s.CountConnections())
+	assert.Equal(1, s.CountConnections(nil))
 
 	assert.Nil(c2.Close())
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(0, s.CountConnections())
+	assert.Equal(0, s.CountConnections(nil))
 }
 
 func TestServer_SetOnConnectionClose(t *testing.T) {
@@ -276,7 +279,7 @@ func TestServer_Shutdown(t *testing.T) {
 	openConnection(port, assert)
 
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(3, s.CountConnections())
+	assert.Equal(3, s.CountConnections(nil))
 
 	wg := sync.WaitGroup{}
 
@@ -291,5 +294,5 @@ func TestServer_Shutdown(t *testing.T) {
 	s.Shutdown()
 	wg.Wait()
 
-	assert.Equal(0, s.CountConnections())
+	assert.Equal(0, s.CountConnections(nil))
 }

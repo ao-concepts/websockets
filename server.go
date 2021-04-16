@@ -141,11 +141,24 @@ func (s *Server) SetOnConnectionClose(fn OnConnectionClose) {
 	}
 }
 
-// CountConnections returns the number of currently active connections
-func (s *Server) CountConnections() int {
+// CountConnections returns the number of currently active connections (a filter can be used to restrict the count)
+func (s *Server) CountConnections(filter Filter) int {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
-	return len(s.connections)
+
+	if filter == nil {
+		return len(s.connections)
+	}
+
+	counter := 0
+
+	for _, c := range s.connections {
+		if filter(c) {
+			counter++
+		}
+	}
+
+	return counter
 }
 
 func (s *Server) addConnection(conn *Connection) {

@@ -1,3 +1,8 @@
+# 0.8.0
+
+*   (feature) Add a filter to `CountConnections`.
+
+
 # 0.7.8
 
 *   (bug) Fix race condition when writing to client side ended connections (part 2).
