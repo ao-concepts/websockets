@@ -231,6 +231,9 @@ func TestServer_CountConnections(t *testing.T) {
 	assert.Equal(0, s.CountConnections(func(c *websockets.Connection) bool {
 		return false
 	}))
+	assert.Equal(2, s.CountConnections(func(c *websockets.Connection) bool {
+		return true
+	}))
 
 	assert.Nil(c.Close())
 	time.Sleep(100 * time.Millisecond)
