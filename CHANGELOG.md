@@ -1,6 +1,6 @@
 # 0.9.0
 
-*   (feature) Add `PublishBatched` to batch messages of a event and publish them in a batched manner.
+*   (feature) Add `UseBatch` to batch messages of an event and publish them in a batched manner.
 *   (bc) Improve performance by using smaller keys for the message object.
 
 

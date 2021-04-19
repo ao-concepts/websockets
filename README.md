@@ -26,6 +26,13 @@ if err != nil {
     log.ErrFatal(err)
 }
 
+// batch sent messages. This can be used to reduce load on clients.
+// Batched message will be prefixed by `batch_`.
+// The data will be stored as array of batched payloads below the `d` property of the actual sent message.
+if err := server.UseBatch("event:name", 1); err != nil {
+	log.ErrError(err)
+}
+
 server.Subscribe("event:name", func(msg *websockets.Message) {
     // here you can handle the message
     c := msg.Connection
@@ -69,4 +76,5 @@ This project uses some really great packages. Please make sure to check them out
 | ------------------------------------------------------------------------- | ------------------ |
 | [github.com/ao-concepts/eventbus](https://github.com/ao-concepts/storage) | Persistence helper |
 | [github.com/gofiber/fiber](https://github.com/gofiber/fiber)              | HTTP router        |
+| [github.com/jasonlvhit/gocron](https://github.com/jasonlvhit/gocron)      | Batch messages     |
 | [github.com/stretchr/testify](https://github.com/stretchr/testify)        | Testing            |

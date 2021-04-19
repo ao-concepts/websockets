@@ -299,3 +299,37 @@ func TestServer_Shutdown(t *testing.T) {
 
 	assert.Equal(0, s.CountConnections(nil))
 }
+
+func TestServer_UseBatch(t *testing.T) {
+	assert := assert.New(t)
+	s, port := startServer(assert)
+	assert.Nil(s.UseBatch("test", 1))
+
+	c := openConnection(port, assert)
+	wg := sync.WaitGroup{}
+
+	go func(c *websocket.Conn) {
+		var msg websockets.Message
+		assert.Nil(c.ReadJSON(&msg))
+		assert.Equal("batch-test", msg.Event)
+		assert.Len(msg.Payload["d"], 2)
+		wg.Done()
+	}(c)
+
+	wg.Add(1)
+	s.Publish(&websockets.Message{
+		Event: "test",
+		Payload: websockets.Payload{
+			"value": "test-data",
+		},
+	}, nil)
+	s.Publish(&websockets.Message{
+		Event: "test",
+		Payload: websockets.Payload{
+			"value": "test-data",
+		},
+	}, nil)
+
+	wg.Wait()
+	assert.Nil(c.Close())
+}

@@ -7,11 +7,12 @@ import (
 
 // Connection on a websocket
 type Connection struct {
-	s     *Server
-	wc    WebsocketConn
-	data  map[string]interface{}
-	write chan Message
-	lock  sync.RWMutex
+	lock    sync.RWMutex
+	s       *Server
+	wc      WebsocketConn
+	data    map[string]interface{}
+	write   chan Message
+	batches map[string]*Batch
 }
 
 // WebsocketConn websocket connection interface
@@ -27,13 +28,20 @@ type Filter func(c *Connection) bool
 
 // NewConnection constructor
 func NewConnection(s *Server, wc WebsocketConn) *Connection {
-	return &Connection{
-		s:     s,
-		wc:    wc,
-		data:  make(map[string]interface{}),
-		write: make(chan Message, s.config.WriteBufferSize),
-		lock:  sync.RWMutex{},
+	c := &Connection{
+		s:       s,
+		wc:      wc,
+		data:    make(map[string]interface{}),
+		write:   make(chan Message, s.config.WriteBufferSize),
+		lock:    sync.RWMutex{},
+		batches: make(map[string]*Batch),
 	}
+
+	for _, event := range s.GetBatches() {
+		c.batches[event] = NewBatch()
+	}
+
+	return c
 }
 
 // Set a key on a connection to a specific value. Overwrites old value.
@@ -60,14 +68,44 @@ func (c *Connection) Get(key string) interface{} {
 	return nil
 }
 
-// SendMessage via this connection
+// SendMessage via this connection. Message can be sent batched using `UseBatch`.
 func (c *Connection) SendMessage(msg *Message) {
+	c.lock.RLock()
+	if _, ok := c.batches[msg.Event]; ok {
+		c.batches[msg.Event].AddPayload(msg.Payload)
+		c.lock.RUnlock()
+		return
+	}
+	c.lock.RUnlock()
+
 	c.write <- *msg
 }
 
 // Publish a message to all matching connections
 func (c *Connection) Publish(msg *Message, filter Filter) {
 	c.s.Publish(msg, filter)
+}
+
+// send all batched data for a event
+func (c *Connection) sendBatch(event string) {
+	c.lock.RLock()
+	batches := c.batches
+	c.lock.RUnlock()
+
+	if batch, ok := batches[event]; ok {
+		data := batch.GetDataAndRemoveAll()
+
+		if len(data) == 0 {
+			return
+		}
+
+		c.write <- Message{
+			Event: "batch-" + event,
+			Payload: Payload{
+				"d": data,
+			},
+		}
+	}
 }
 
 // returns false on errors

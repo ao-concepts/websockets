@@ -3,11 +3,11 @@ package websockets
 import (
 	"context"
 	"fmt"
-	"sync"
-
 	"github.com/ao-concepts/eventbus"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
+	"github.com/jasonlvhit/gocron"
+	"sync"
 )
 
 // Message that is received or sent via a websocket.
@@ -31,6 +31,7 @@ type Server struct {
 	ctx               context.Context
 	cancel            context.CancelFunc
 	isStopped         bool
+	batches           map[string]bool
 }
 
 // ServerConfig configuration of the server
@@ -58,12 +59,13 @@ func New(config *ServerConfig, log Logger) (s *Server, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Server{
-		config: config,
-		log:    log,
-		bus:    eventbus.New(nil, false),
-		lock:   sync.RWMutex{},
-		ctx:    ctx,
-		cancel: cancel,
+		config:  config,
+		log:     log,
+		bus:     eventbus.New(nil, false),
+		lock:    sync.RWMutex{},
+		ctx:     ctx,
+		cancel:  cancel,
+		batches: make(map[string]bool),
 	}, nil
 }
 
@@ -110,6 +112,48 @@ func (s *Server) Publish(msg *Message, filter Filter) {
 	s.lock.RUnlock()
 
 	go publishToConnections(msg, filter, connections)
+}
+
+// UseBatch registers a batch interval sender.
+// Sends events in a batched manner when they are sent by `Connection.SendMessage`.
+// Has to be called before the first connection is established.
+// Interval in seconds.
+func (s *Server) UseBatch(event string, interval uint64) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	eventName := event
+	s.batches[eventName] = true
+
+	sc := gocron.NewScheduler()
+
+	if err := sc.Every(interval).Second().Do(func() {
+		s.lock.RLock()
+		defer s.lock.RUnlock()
+
+		for _, c := range s.connections {
+			c.sendBatch(eventName)
+		}
+	}); err != nil {
+		return err
+	}
+
+	sc.Start()
+	return nil
+}
+
+// GetBatches return the current list of batches registered for the server.
+func (s *Server) GetBatches() []string {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	var batches []string
+
+	for event := range s.batches {
+		batches = append(batches, event)
+	}
+
+	return batches
 }
 
 func publishToConnections(msg *Message, filter Filter, connections []*Connection) {
