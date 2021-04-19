@@ -12,8 +12,8 @@ import (
 
 // Message that is received or sent via a websocket.
 type Message struct {
-	Event      string      `json:"event"`
-	Payload    Payload     `json:"payload"`
+	Event      string      `json:"e"`
+	Payload    Payload     `json:"p"`
 	Connection *Connection `json:"-"`
 }
 

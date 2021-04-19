@@ -1,3 +1,9 @@
+# 0.9.0
+
+*   (feature) Add `PublishBatched` to batch messages of a event and publish them in a batched manner.
+*   (bc) Improve performance by using smaller keys for the message object.
+
+
 # 0.8.0
 
 *   (feature) Add a filter to `CountConnections`.
