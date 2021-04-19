@@ -1,3 +1,8 @@
+# 0.10.0
+
+*   (feature) Add `SendMessageUnBatched` to `Connection`.
+
+
 # 0.9.0
 
 *   (feature) Add `UseBatch` to batch messages of an event and publish them in a batched manner.

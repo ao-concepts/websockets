@@ -78,6 +78,11 @@ func (c *Connection) SendMessage(msg *Message) {
 	}
 	c.lock.RUnlock()
 
+	c.SendMessageUnBatched(msg)
+}
+
+// SendMessageUnBatched send a message via this connection. Massage will not be batched.
+func (c *Connection) SendMessageUnBatched(msg *Message) {
 	c.write <- *msg
 }
 
