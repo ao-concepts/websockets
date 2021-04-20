@@ -1,3 +1,8 @@
+# 0.10.1
+
+*   (bug) Close connections in `Server.Shutdown` using go routines to prevent deadlocks.
+
+
 # 0.10.0
 
 *   (feature) Add `SendMessageUnBatched` to `Connection`.

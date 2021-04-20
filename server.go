@@ -69,24 +69,28 @@ func New(config *ServerConfig, log Logger) (s *Server, err error) {
 	}, nil
 }
 
-// Shutdown gracefully stopps the server
+// Shutdown gracefully stops the server
 func (s *Server) Shutdown() {
-	s.log.Debug("websocket: shutdown prepare ... ")
 	s.lock.Lock()
-	s.log.Debug("websocket: shutdown start ... ")
-	defer s.lock.Unlock()
-	defer s.log.Debug("websocket: shutdown complete")
+	wg := sync.WaitGroup{}
 
 	for _, conn := range s.connections {
 		if s.onConnectionClose != nil {
-			s.onConnectionClose(conn)
+			wg.Add(1)
+			go func() {
+				s.onConnectionClose(conn)
+				wg.Done()
+			}()
 		}
 	}
+	s.lock.Unlock()
 
-	s.log.Debug("websocket: shutdown after loop ... ")
+	wg.Wait()
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
 	s.cancel()
-	s.log.Debug("websocket: shutdown after cancel ... ")
 	s.connections = nil
 	s.isStopped = true
 }
