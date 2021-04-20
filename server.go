@@ -71,8 +71,11 @@ func New(config *ServerConfig, log Logger) (s *Server, err error) {
 
 // Shutdown gracefully stopps the server
 func (s *Server) Shutdown() {
+	s.log.Debug("websocket: shutdown prepare ... ")
 	s.lock.Lock()
+	s.log.Debug("websocket: shutdown start ... ")
 	defer s.lock.Unlock()
+	defer s.log.Debug("websocket: shutdown complete")
 
 	for _, conn := range s.connections {
 		if s.onConnectionClose != nil {
