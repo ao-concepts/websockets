@@ -83,7 +83,10 @@ func (s *Server) Shutdown() {
 		}
 	}
 
+	s.log.Debug("websocket: shutdown after loop ... ")
+
 	s.cancel()
+	s.log.Debug("websocket: shutdown after cancel ... ")
 	s.connections = nil
 	s.isStopped = true
 }
