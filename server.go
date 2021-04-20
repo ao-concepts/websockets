@@ -101,6 +101,7 @@ func (s *Server) Handler(c *fiber.Ctx) error {
 		conn := NewConnection(s, wc)
 		s.addConnection(conn)
 		s.Connect(conn)
+		s.log.Debug("websocket: connection end")
 	})(c)
 }
 
