@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/ao-concepts/eventbus"
+	"github.com/go-co-op/gocron"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
-	"github.com/jasonlvhit/gocron"
 	"sync"
+	"time"
 )
 
 // Message that is received or sent via a websocket.
@@ -78,8 +79,8 @@ func (s *Server) Shutdown() {
 		if s.onConnectionClose != nil {
 			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				s.onConnectionClose(conn)
-				wg.Done()
 			}()
 		}
 	}
@@ -101,7 +102,6 @@ func (s *Server) Handler(c *fiber.Ctx) error {
 		conn := NewConnection(s, wc)
 		s.addConnection(conn)
 		s.Connect(conn)
-		s.log.Debug("websocket: connection end")
 	})(c)
 }
 
@@ -129,27 +129,37 @@ func (s *Server) Publish(msg *Message, filter Filter) {
 // Sends events in a batched manner when they are sent by `Connection.SendMessage`.
 // Has to be called before the first connection is established.
 // Interval in seconds.
-func (s *Server) UseBatch(event string, interval uint64) error {
+func (s *Server) UseBatch(event string, interval time.Duration) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	eventName := event
 	s.batches[eventName] = true
 
-	sc := gocron.NewScheduler()
+	sc := gocron.NewScheduler(time.UTC)
 
-	if err := sc.Every(interval).Second().Do(func() {
+	if _, err := sc.Every(interval).SingletonMode().Do(func() {
 		s.lock.RLock()
-		defer s.lock.RUnlock()
+		connections := s.connections
+		s.lock.RUnlock()
 
-		for _, c := range s.connections {
-			c.sendBatch(eventName)
+		wg := sync.WaitGroup{}
+
+		for _, c := range connections {
+			wg.Add(1)
+
+			go func(c *Connection) {
+				defer wg.Done()
+				c.sendBatch(eventName)
+			}(c)
 		}
+
+		wg.Wait()
 	}); err != nil {
 		return err
 	}
 
-	sc.Start()
+	sc.StartAsync()
 	return nil
 }
 

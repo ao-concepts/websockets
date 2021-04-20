@@ -1,3 +1,9 @@
+# 0.11.0
+
+*   (bug) Fix issues with `UseBatch` cron task.
+*   (bc) Pass ``time.Duration` to `UseBatch`.
+
+
 # 0.10.1
 
 *   (bug) Close connections in `Server.Shutdown` using go routines to prevent deadlocks.

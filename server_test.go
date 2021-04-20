@@ -303,7 +303,7 @@ func TestServer_Shutdown(t *testing.T) {
 func TestServer_UseBatch(t *testing.T) {
 	assert := assert.New(t)
 	s, port := startServer(assert)
-	assert.Nil(s.UseBatch("test", 1))
+	assert.Nil(s.UseBatch("test", time.Second))
 
 	c := openConnection(port, assert)
 	wg := sync.WaitGroup{}

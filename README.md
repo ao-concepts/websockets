@@ -29,7 +29,7 @@ if err != nil {
 // batch sent messages. This can be used to reduce load on clients.
 // Batched message will be prefixed by `batch_`.
 // The data will be stored as array of batched payloads below the `d` property of the actual sent message.
-if err := server.UseBatch("event:name", 1); err != nil {
+if err := server.UseBatch("event:name", time.Second); err != nil {
 	log.ErrError(err)
 }
 

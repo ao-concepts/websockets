@@ -7,6 +7,7 @@ require (
 	github.com/ao-concepts/logging v0.0.2
 	github.com/dchest/uniuri v0.0.0-20200228104902-7aecb25e1fe5
 	github.com/fasthttp/websocket v1.4.3 // indirect
+	github.com/go-co-op/gocron v1.5.0
 	github.com/gofiber/fiber/v2 v2.7.1
 	github.com/gofiber/websocket/v2 v2.0.3
 	github.com/gorilla/websocket v1.4.2
