@@ -1,3 +1,8 @@
+# 0.11.4
+
+*   (bug) Correctly close connections.
+
+
 # 0.11.3
 
 *   (bug) Fix adding of new connections.

@@ -132,14 +132,13 @@ func (c *Connection) sendBatch(event string) {
 type OnEndFunc = func(c *Connection)
 
 // returns false on errors
-func (c *Connection) listenForMessages(ctx context.Context, wc WebsocketConn, onEnd OnEndFunc) {
+func (c *Connection) listenForMessages(ctx context.Context, wc WebsocketConn, cancel func()) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.s.log.Warn("websocket: ending connection read after panic: %v", r)
 		}
-
-		onEnd(c)
 	}()
+	defer cancel()
 
 	for {
 		select {
@@ -166,14 +165,13 @@ func (c *Connection) listenForMessages(ctx context.Context, wc WebsocketConn, on
 }
 
 // publish messages to a websocket connection
-func (c *Connection) publishMessages(ctx context.Context, wc WebsocketConn, onEnd OnEndFunc) {
+func (c *Connection) publishMessages(ctx context.Context, wc WebsocketConn, cancel func()) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.s.log.Warn("websocket: ending connection write after panic: %v", r)
 		}
-
-		onEnd(c)
 	}()
+	defer cancel()
 
 	for {
 		select {

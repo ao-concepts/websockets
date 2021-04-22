@@ -100,8 +100,7 @@ func (s *Server) Shutdown() {
 // Handler that reads from and writes to a websocket connection
 func (s *Server) Handler(c *fiber.Ctx) error {
 	return websocket.New(func(wc *websocket.Conn) {
-		conn := NewConnection(s, wc)
-		s.Connect(conn)
+		s.Connect(NewConnection(s, wc))
 	})(c)
 }
 
@@ -159,6 +158,7 @@ func (s *Server) UseBatch(event string, interval time.Duration) error {
 		}
 
 		wg.Wait()
+		s.log.Debug("websockets: batch send")
 	}); err != nil {
 		return err
 	}
@@ -249,28 +249,19 @@ func (s *Server) Connect(conn *Connection) {
 		return
 	}
 
-	wg := sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
-	onEnd := func(c *Connection) {
-		if !c.close() {
-			return
-		}
 
-		defer cancel()
-		defer wg.Done()
+	s.addConnection(conn)
+	go conn.publishMessages(ctx, conn.wc, cancel)
+	go conn.listenForMessages(ctx, conn.wc, cancel)
+	<-ctx.Done()
+	cancel()
 
-		if s.onConnectionClose != nil {
-			s.onConnectionClose(c)
-		}
-
-		s.removeConnection(c)
+	if s.onConnectionClose != nil {
+		s.onConnectionClose(conn)
 	}
 
-	wg.Add(1)
-	s.addConnection(conn)
-	go conn.publishMessages(ctx, conn.wc, onEnd)
-	go conn.listenForMessages(ctx, conn.wc, onEnd)
-	wg.Wait()
+	s.removeConnection(conn)
 }
 
 func (s *Server) handleSubscription(ch chan eventbus.Event, handler func(msg *Message)) {
