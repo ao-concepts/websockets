@@ -1,3 +1,8 @@
+# 0.11.2
+
+*   (bug) Clean up locks.
+
+
 # 0.11.1
 
 *   (bug) Prevent deadlocks.

@@ -26,7 +26,7 @@ type Server struct {
 	lock              sync.RWMutex
 	log               Logger
 	bus               *eventbus.Bus
-	connections       []*Connection
+	connections       map[*Connection]bool
 	config            *ServerConfig
 	onConnectionClose OnConnectionClose
 	ctx               context.Context
@@ -60,13 +60,14 @@ func New(config *ServerConfig, log Logger) (s *Server, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Server{
-		config:  config,
-		log:     log,
-		bus:     eventbus.New(nil, false),
-		lock:    sync.RWMutex{},
-		ctx:     ctx,
-		cancel:  cancel,
-		batches: make(map[string]bool),
+		config:      config,
+		log:         log,
+		bus:         eventbus.New(nil, false),
+		lock:        sync.RWMutex{},
+		ctx:         ctx,
+		cancel:      cancel,
+		connections: make(map[*Connection]bool),
+		batches:     make(map[string]bool),
 	}, nil
 }
 
@@ -75,7 +76,7 @@ func (s *Server) Shutdown() {
 	s.lock.Lock()
 	wg := sync.WaitGroup{}
 
-	for _, conn := range s.connections {
+	for conn := range s.connections {
 		if s.onConnectionClose != nil {
 			wg.Add(1)
 			go func() {
@@ -116,23 +117,17 @@ func (s *Server) Subscribe(eventName string, handler func(msg *Message)) error {
 
 // Publish data to all matching connections
 func (s *Server) Publish(msg *Message, filter Filter) {
-	var connections []*Connection
-
-	s.lock.RLock()
-	connections = append(connections, s.connections...)
-	s.lock.RUnlock()
-
-	go publishToConnections(msg, filter, connections)
+	go publishToConnections(msg, filter, s.getConnections())
 }
 
-func (s *Server) getConnections() []*Connection {
+func (s *Server) getConnections() map[*Connection]bool {
+	connections := make(map[*Connection]bool)
+
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	var connections []*Connection
-
-	for _, c := range s.connections {
-		connections = append(connections, c)
+	for conn := range s.connections {
+		connections[conn] = true
 	}
 
 	return connections
@@ -155,7 +150,7 @@ func (s *Server) UseBatch(event string, interval time.Duration) error {
 		connections := s.getConnections()
 		wg := sync.WaitGroup{}
 
-		for _, c := range connections {
+		for c := range connections {
 			wg.Add(1)
 
 			go func(c *Connection) {
@@ -187,16 +182,16 @@ func (s *Server) GetBatches() []string {
 	return batches
 }
 
-func publishToConnections(msg *Message, filter Filter, connections []*Connection) {
+func publishToConnections(msg *Message, filter Filter, connections map[*Connection]bool) {
 	if filter == nil {
-		for _, c := range connections {
+		for c := range connections {
 			c.SendMessage(msg)
 		}
 
 		return
 	}
 
-	for _, c := range connections {
+	for c := range connections {
 		if filter(c) {
 			c.SendMessage(msg)
 		}
@@ -227,7 +222,7 @@ func (s *Server) CountConnections(filter Filter) int {
 
 	counter := 0
 
-	for _, c := range s.connections {
+	for c := range s.connections {
 		if filter(c) {
 			counter++
 		}
@@ -239,26 +234,14 @@ func (s *Server) CountConnections(filter Filter) int {
 func (s *Server) addConnection(conn *Connection) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	s.connections = append(s.connections, conn)
+	s.connections[conn] = true
 }
 
 func (s *Server) removeConnection(conn *Connection) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	ci := -1
-
-	for i, c := range s.connections {
-		if c == conn {
-			ci = i
-		}
-	}
-
-	if ci >= 0 {
-		l := len(s.connections) - 1
-		s.connections[l], s.connections[ci] = s.connections[ci], s.connections[l]
-		s.connections = s.connections[:l]
-	}
+	delete(s.connections, conn)
 }
 
 // Connect a websocket to the server
