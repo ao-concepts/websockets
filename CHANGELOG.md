@@ -1,3 +1,8 @@
+# 0.11.1
+
+*   (bug) Prevent deadlocks.
+
+
 # 0.11.0
 
 *   (bug) Fix issues with `UseBatch` cron task.

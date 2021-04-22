@@ -13,6 +13,7 @@ type Connection struct {
 	data    map[string]interface{}
 	write   chan Message
 	batches map[string]*Batch
+	isOpen  bool
 }
 
 // WebsocketConn websocket connection interface
@@ -35,6 +36,7 @@ func NewConnection(s *Server, wc WebsocketConn) *Connection {
 		write:   make(chan Message, s.config.WriteBufferSize),
 		lock:    sync.RWMutex{},
 		batches: make(map[string]*Batch),
+		isOpen:  true,
 	}
 
 	for _, event := range s.GetBatches() {
@@ -71,18 +73,22 @@ func (c *Connection) Get(key string) interface{} {
 // SendMessage via this connection. Message can be sent batched using `UseBatch`.
 func (c *Connection) SendMessage(msg *Message) {
 	c.lock.RLock()
+	defer c.lock.RUnlock()
+
 	if _, ok := c.batches[msg.Event]; ok {
 		c.batches[msg.Event].AddPayload(msg.Payload)
-		c.lock.RUnlock()
 		return
 	}
-	c.lock.RUnlock()
 
-	c.SendMessageUnBatched(msg)
+	go c.SendMessageUnBatched(msg)
 }
 
 // SendMessageUnBatched send a message via this connection. Massage will not be batched.
 func (c *Connection) SendMessageUnBatched(msg *Message) {
+	if !c.isOpen {
+		return
+	}
+
 	c.write <- *msg
 }
 
@@ -91,36 +97,48 @@ func (c *Connection) Publish(msg *Message, filter Filter) {
 	c.s.Publish(msg, filter)
 }
 
+// returns true if the connection was open before
+func (c *Connection) close() bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	success := c.isOpen
+	c.isOpen = false
+
+	return success
+}
+
 // send all batched data for a event
 func (c *Connection) sendBatch(event string) {
 	c.lock.RLock()
-	batches := c.batches
-	c.lock.RUnlock()
+	defer c.lock.RUnlock()
 
-	if batch, ok := batches[event]; ok {
+	if batch, ok := c.batches[event]; ok {
 		data := batch.GetDataAndRemoveAll()
 
 		if len(data) == 0 {
 			return
 		}
 
-		c.write <- Message{
+		go c.SendMessageUnBatched(&Message{
 			Event: "batch-" + event,
 			Payload: Payload{
 				"d": data,
 			},
-		}
+		})
 	}
 }
 
+type OnEndFunc = func(c *Connection)
+
 // returns false on errors
-func (c *Connection) listenForMessages(ctx context.Context, wc WebsocketConn, onEnd func()) {
+func (c *Connection) listenForMessages(ctx context.Context, wc WebsocketConn, onEnd OnEndFunc) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.s.log.Warn("websocket: ending connection read after panic: %v", r)
 		}
 
-		onEnd()
+		onEnd(c)
 	}()
 
 	for {
@@ -148,13 +166,13 @@ func (c *Connection) listenForMessages(ctx context.Context, wc WebsocketConn, on
 }
 
 // publish messages to a websocket connection
-func (c *Connection) publishMessages(ctx context.Context, wc WebsocketConn, onEnd func()) {
+func (c *Connection) publishMessages(ctx context.Context, wc WebsocketConn, onEnd OnEndFunc) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.s.log.Warn("websocket: ending connection write after panic: %v", r)
 		}
 
-		onEnd()
+		onEnd(c)
 	}()
 
 	for {

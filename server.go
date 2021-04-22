@@ -125,6 +125,19 @@ func (s *Server) Publish(msg *Message, filter Filter) {
 	go publishToConnections(msg, filter, connections)
 }
 
+func (s *Server) getConnections() []*Connection {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	var connections []*Connection
+
+	for _, c := range s.connections {
+		connections = append(connections, c)
+	}
+
+	return connections
+}
+
 // UseBatch registers a batch interval sender.
 // Sends events in a batched manner when they are sent by `Connection.SendMessage`.
 // Has to be called before the first connection is established.
@@ -139,10 +152,7 @@ func (s *Server) UseBatch(event string, interval time.Duration) error {
 	sc := gocron.NewScheduler(time.UTC)
 
 	if _, err := sc.Every(interval).SingletonMode().Do(func() {
-		s.lock.RLock()
-		connections := s.connections
-		s.lock.RUnlock()
-
+		connections := s.getConnections()
 		wg := sync.WaitGroup{}
 
 		for _, c := range connections {
@@ -254,34 +264,32 @@ func (s *Server) removeConnection(conn *Connection) {
 // Connect a websocket to the server
 func (s *Server) Connect(conn *Connection) {
 	if s.isStopped {
-		conn.wc.Close()
+		_ = conn.wc.Close()
 		return
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	endCalled := false
-	sync := sync.Mutex{}
-	onEnd := func() {
-		sync.Lock()
-		defer sync.Unlock()
-		defer cancel()
-
-		if endCalled {
+	wg := sync.WaitGroup{}
+	onEnd := func(c *Connection) {
+		if !c.close() {
 			return
 		}
 
-		endCalled = true
+		defer cancel()
+		defer wg.Done()
 
 		if s.onConnectionClose != nil {
-			s.onConnectionClose(conn)
+			s.onConnectionClose(c)
 		}
 
-		s.removeConnection(conn)
+		s.removeConnection(c)
 	}
 
+	wg.Add(1)
 	go conn.publishMessages(ctx, conn.wc, onEnd)
-	conn.listenForMessages(ctx, conn.wc, onEnd)
+	go conn.listenForMessages(ctx, conn.wc, onEnd)
+	wg.Wait()
 }
 
 func (s *Server) handleSubscription(ch chan eventbus.Event, handler func(msg *Message)) {
