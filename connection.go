@@ -7,13 +7,15 @@ import (
 
 // Connection on a websocket
 type Connection struct {
-	lock    sync.RWMutex
-	s       *Server
-	wc      WebsocketConn
-	data    map[string]interface{}
-	write   chan Message
-	batches map[string]*Batch
-	isOpen  bool
+	lock      sync.RWMutex
+	s         *Server
+	wc        WebsocketConn
+	data      map[string]interface{}
+	write     chan Message
+	batches   map[string]*Batch
+	isOpen    bool
+	ctx       context.Context
+	cancelCtx func()
 }
 
 // WebsocketConn websocket connection interface
@@ -28,15 +30,17 @@ type WebsocketConn interface {
 type Filter func(c *Connection) bool
 
 // NewConnection constructor
-func NewConnection(s *Server, wc WebsocketConn) *Connection {
+func NewConnection(s *Server, wc WebsocketConn, ctx context.Context, cancel func()) *Connection {
 	c := &Connection{
-		s:       s,
-		wc:      wc,
-		data:    make(map[string]interface{}),
-		write:   make(chan Message, s.config.WriteBufferSize),
-		lock:    sync.RWMutex{},
-		batches: make(map[string]*Batch),
-		isOpen:  true,
+		s:         s,
+		wc:        wc,
+		data:      make(map[string]interface{}),
+		write:     make(chan Message, s.config.WriteBufferSize),
+		lock:      sync.RWMutex{},
+		batches:   make(map[string]*Batch),
+		isOpen:    true,
+		ctx:       ctx,
+		cancelCtx: cancel,
 	}
 
 	for _, event := range s.GetBatches() {
@@ -80,16 +84,27 @@ func (c *Connection) SendMessage(msg *Message) {
 		return
 	}
 
-	go c.SendMessageUnBatched(msg)
-}
-
-// SendMessageUnBatched send a message via this connection. Massage will not be batched.
-func (c *Connection) SendMessageUnBatched(msg *Message) {
 	if !c.isOpen {
 		return
 	}
 
-	c.write <- *msg
+	go func() {
+		c.write <- *msg
+	}()
+}
+
+// SendMessageUnBatched send a message via this connection. Massage will not be batched.
+func (c *Connection) SendMessageUnBatched(msg *Message) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	if !c.isOpen {
+		return
+	}
+
+	go func() {
+		c.write <- *msg
+	}()
 }
 
 // Publish a message to all matching connections
@@ -132,17 +147,17 @@ func (c *Connection) sendBatch(event string) {
 type OnEndFunc = func(c *Connection)
 
 // returns false on errors
-func (c *Connection) listenForMessages(ctx context.Context, wc WebsocketConn, cancel func()) {
+func (c *Connection) listenForMessages(wc WebsocketConn) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.s.log.Warn("websocket: ending connection read after panic: %v", r)
 		}
 	}()
-	defer cancel()
+	defer c.cancelCtx()
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-c.ctx.Done():
 			c.s.log.Info("Websocket closed: stopping reader")
 			return
 		default:
@@ -165,13 +180,13 @@ func (c *Connection) listenForMessages(ctx context.Context, wc WebsocketConn, ca
 }
 
 // publish messages to a websocket connection
-func (c *Connection) publishMessages(ctx context.Context, wc WebsocketConn, cancel func()) {
+func (c *Connection) publishMessages(wc WebsocketConn) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.s.log.Warn("websocket: ending connection write after panic: %v", r)
 		}
 	}()
-	defer cancel()
+	defer c.cancelCtx()
 
 	for {
 		select {
@@ -180,7 +195,7 @@ func (c *Connection) publishMessages(ctx context.Context, wc WebsocketConn, canc
 				c.s.log.ErrError(err)
 				return
 			}
-		case <-ctx.Done():
+		case <-c.ctx.Done():
 			c.s.log.Info("Websocket closed: stopping writer")
 			return
 		}

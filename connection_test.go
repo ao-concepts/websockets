@@ -1,6 +1,7 @@
 package websockets_test
 
 import (
+	"context"
 	"net/url"
 	"strconv"
 	"testing"
@@ -37,14 +38,16 @@ func openConnection(port int, assert *assert.Assertions) *websocket.Conn {
 func TestNewConnection(t *testing.T) {
 	assert := assert.New(t)
 	s, _ := websockets.New(nil, logging.New(logging.Debug, nil))
-	c := websockets.NewConnection(s, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	c := websockets.NewConnection(s, nil, ctx, cancel)
 	assert.NotNil(c)
 }
 
 func TestConnection_Set(t *testing.T) {
 	assert := assert.New(t)
 	s, _ := websockets.New(nil, logging.New(logging.Debug, nil))
-	c := websockets.NewConnection(s, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	c := websockets.NewConnection(s, nil, ctx, cancel)
 
 	c.Set("test-key", "test-value")
 	assert.Equal("test-value", c.Get("test-key"))
@@ -55,7 +58,8 @@ func TestConnection_Set(t *testing.T) {
 func TestConnection_Get(t *testing.T) {
 	assert := assert.New(t)
 	s, _ := websockets.New(nil, logging.New(logging.Debug, nil))
-	c := websockets.NewConnection(s, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	c := websockets.NewConnection(s, nil, ctx, cancel)
 
 	assert.Nil(c.Get("test-key"))
 
@@ -67,7 +71,8 @@ func TestConnection_Publish(t *testing.T) {
 	assert := assert.New(t)
 	s, _ := websockets.New(nil, logging.New(logging.Debug, nil))
 
-	conn := websockets.NewConnection(s, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	conn := websockets.NewConnection(s, nil, ctx, cancel)
 
 	assert.NotPanics(func() {
 		conn.Publish(&websockets.Message{
@@ -85,7 +90,8 @@ func TestConnection_Locals(t *testing.T) {
 	wsConn := websockets.NewWebsocketConnMock()
 	wsConn.LocalData["test-key"] = "test-value"
 
-	conn := websockets.NewConnection(s, wsConn)
+	ctx, cancel := context.WithCancel(context.Background())
+	conn := websockets.NewConnection(s, wsConn, ctx, cancel)
 
 	assert.Equal("test-value", conn.Locals("test-key"))
 	assert.Nil(conn.Locals("not-available"))

@@ -1,3 +1,8 @@
+# 0.11.5
+
+*   (internal) Clean up context of connection.
+
+
 # 0.11.4
 
 *   (bug) Correctly close connections.

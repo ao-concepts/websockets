@@ -41,13 +41,13 @@ type ServerConfig struct {
 	WriteBufferSize int
 }
 
-// OnConnectionClose is ecuted when a connection is closed
+// OnConnectionClose is executed when a connection is closed
 type OnConnectionClose func(c *Connection)
 
 // New server constructor
 func New(config *ServerConfig, log Logger) (s *Server, err error) {
 	if log == nil {
-		return nil, fmt.Errorf("Cannot use a websocket server without a logger")
+		return nil, fmt.Errorf("cannot use a websocket server without a logger")
 	}
 
 	if config == nil {
@@ -84,6 +84,8 @@ func (s *Server) Shutdown() {
 				s.onConnectionClose(conn)
 			}()
 		}
+
+		_ = conn.wc.Close()
 	}
 	s.lock.Unlock()
 
@@ -100,7 +102,11 @@ func (s *Server) Shutdown() {
 // Handler that reads from and writes to a websocket connection
 func (s *Server) Handler(c *fiber.Ctx) error {
 	return websocket.New(func(wc *websocket.Conn) {
-		s.Connect(NewConnection(s, wc))
+		defer func() {
+			_ = wc.Close()
+		}()
+		ctx, cancel := context.WithCancel(context.Background())
+		s.Connect(NewConnection(s, wc, ctx, cancel))
 	})(c)
 }
 
@@ -249,13 +255,11 @@ func (s *Server) Connect(conn *Connection) {
 		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	s.addConnection(conn)
-	go conn.publishMessages(ctx, conn.wc, cancel)
-	go conn.listenForMessages(ctx, conn.wc, cancel)
-	<-ctx.Done()
-	cancel()
+	go conn.publishMessages(conn.wc)
+	go conn.listenForMessages(conn.wc)
+	<-conn.ctx.Done()
+	conn.cancelCtx()
 
 	if s.onConnectionClose != nil {
 		s.onConnectionClose(conn)
