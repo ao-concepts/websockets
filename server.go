@@ -101,7 +101,6 @@ func (s *Server) Shutdown() {
 func (s *Server) Handler(c *fiber.Ctx) error {
 	return websocket.New(func(wc *websocket.Conn) {
 		conn := NewConnection(s, wc)
-		s.addConnection(conn)
 		s.Connect(conn)
 	})(c)
 }
@@ -247,13 +246,11 @@ func (s *Server) removeConnection(conn *Connection) {
 // Connect a websocket to the server
 func (s *Server) Connect(conn *Connection) {
 	if s.isStopped {
-		_ = conn.wc.Close()
 		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	wg := sync.WaitGroup{}
+	ctx, cancel := context.WithCancel(context.Background())
 	onEnd := func(c *Connection) {
 		if !c.close() {
 			return
@@ -270,6 +267,7 @@ func (s *Server) Connect(conn *Connection) {
 	}
 
 	wg.Add(1)
+	s.addConnection(conn)
 	go conn.publishMessages(ctx, conn.wc, onEnd)
 	go conn.listenForMessages(ctx, conn.wc, onEnd)
 	wg.Wait()

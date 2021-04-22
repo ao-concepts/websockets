@@ -1,3 +1,8 @@
+# 0.11.3
+
+*   (bug) Fix adding of new connections.
+
+
 # 0.11.2
 
 *   (bug) Clean up locks.
