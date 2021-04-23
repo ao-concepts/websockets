@@ -257,11 +257,11 @@ func (s *Server) Connect(conn *Connection) {
 
 	s.addConnection(conn)
 	defer func(conn *Connection) {
+		s.removeConnection(conn)
+
 		if s.onConnectionClose != nil {
 			s.onConnectionClose(conn)
 		}
-
-		s.removeConnection(conn)
 	}(conn)
 	go conn.publishMessages(conn.wc)
 	go conn.listenForMessages(conn.wc)
