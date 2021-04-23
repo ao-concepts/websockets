@@ -256,16 +256,17 @@ func (s *Server) Connect(conn *Connection) {
 	}
 
 	s.addConnection(conn)
+	defer func(conn *Connection) {
+		if s.onConnectionClose != nil {
+			s.onConnectionClose(conn)
+		}
+
+		s.removeConnection(conn)
+	}(conn)
 	go conn.publishMessages(conn.wc)
 	go conn.listenForMessages(conn.wc)
 	<-conn.ctx.Done()
 	conn.cancelCtx()
-
-	if s.onConnectionClose != nil {
-		s.onConnectionClose(conn)
-	}
-
-	s.removeConnection(conn)
 }
 
 func (s *Server) handleSubscription(ch chan eventbus.Event, handler func(msg *Message)) {
