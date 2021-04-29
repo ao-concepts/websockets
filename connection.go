@@ -2,7 +2,9 @@ package websockets
 
 import (
 	"context"
+	"github.com/gofiber/websocket/v2"
 	"sync"
+	"time"
 )
 
 // Connection on a websocket
@@ -22,6 +24,7 @@ type Connection struct {
 type WebsocketConn interface {
 	ReadJSON(v interface{}) error
 	WriteJSON(v interface{}) error
+	WriteMessage(messageType int, data []byte) error
 	Close() error
 	Locals(key string) interface{}
 }
@@ -181,6 +184,7 @@ func (c *Connection) listenForMessages(wc WebsocketConn) {
 
 // publish messages to a websocket connection
 func (c *Connection) publishMessages(wc WebsocketConn) {
+	ticker := time.NewTicker(PingInterval)
 	defer func() {
 		if r := recover(); r != nil {
 			c.s.log.Warn("websocket: ending connection write after panic: %v", r)
@@ -193,6 +197,10 @@ func (c *Connection) publishMessages(wc WebsocketConn) {
 		case msg := <-c.write:
 			if err := wc.WriteJSON(msg); err != nil {
 				c.s.log.ErrError(err)
+				return
+			}
+		case <-ticker.C:
+			if err := wc.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
 				return
 			}
 		case <-c.ctx.Done():

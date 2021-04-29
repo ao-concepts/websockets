@@ -60,3 +60,14 @@ func (c *WebsocketConnMock) Close() error {
 
 	return nil
 }
+
+// WriteMessage to the connection
+func (c *WebsocketConnMock) WriteMessage(messageType int, data []byte) error {
+	if c.DoError {
+		return fmt.Errorf("error")
+	}
+
+	c.Read <- data
+
+	return nil
+}

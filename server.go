@@ -44,6 +44,10 @@ type ServerConfig struct {
 // OnConnectionClose is executed when a connection is closed
 type OnConnectionClose func(c *Connection)
 
+const PongTimeout = 60 * time.Second
+const PingInterval = (PongTimeout * 9) / 10
+const WriteTimeout = 10 * time.Second
+
 // New server constructor
 func New(config *ServerConfig, log Logger) (s *Server, err error) {
 	if log == nil {
@@ -105,6 +109,10 @@ func (s *Server) Handler(c *fiber.Ctx) error {
 		defer func() {
 			_ = wc.Close()
 		}()
+
+		_ = wc.SetReadDeadline(time.Now().Add(PongTimeout))
+		wc.SetPongHandler(func(string) error { _ = wc.SetReadDeadline(time.Now().Add(PongTimeout)); return nil })
+
 		ctx, cancel := context.WithCancel(context.Background())
 		s.Connect(NewConnection(s, wc, ctx, cancel))
 	})(c)

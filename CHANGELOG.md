@@ -1,3 +1,8 @@
+# 0.11.8
+
+*   (bug) Add ping / pong handling.
+
+
 # 0.11.7
 
 *   (bug) Improve order of connection removal in connection close cleanup.
