@@ -1,3 +1,8 @@
+# 1.0.0
+
+*   (bc) Changed signature of `New` function to use a `ServiceContainer` interface.
+
+
 # 0.11.8
 
 *   (bug) Add ping / pong handling.

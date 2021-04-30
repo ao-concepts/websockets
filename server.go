@@ -2,7 +2,6 @@ package websockets
 
 import (
 	"context"
-	"fmt"
 	"github.com/ao-concepts/eventbus"
 	"github.com/go-co-op/gocron"
 	"github.com/gofiber/fiber/v2"
@@ -11,28 +10,26 @@ import (
 	"time"
 )
 
-// Message that is received or sent via a websocket.
-type Message struct {
-	Event      string      `json:"e"`
-	Payload    Payload     `json:"p"`
-	Connection *Connection `json:"-"`
-}
+const PongTimeout = 60 * time.Second
+const PingInterval = (PongTimeout * 9) / 10
 
-// Payload send by a websocket connection
-type Payload map[string]interface{}
+type ServiceContainer interface {
+	GetLogger() Logger
+	GetWebsocketsConfig() *ServerConfig
+}
 
 // Server for websockets
 type Server struct {
 	lock              sync.RWMutex
 	log               Logger
-	bus               *eventbus.Bus
-	connections       map[*Connection]bool
-	config            *ServerConfig
-	onConnectionClose OnConnectionClose
+	cfg               *ServerConfig
 	ctx               context.Context
 	cancel            context.CancelFunc
-	isStopped         bool
+	bus               *eventbus.Bus
+	connections       map[*Connection]bool
 	batches           map[string]bool
+	onConnectionClose OnConnectionClose
+	isStopped         bool
 }
 
 // ServerConfig configuration of the server
@@ -41,21 +38,35 @@ type ServerConfig struct {
 	WriteBufferSize int
 }
 
+// Message that is received or sent via a websocket.
+type Message struct {
+	Event   string  `json:"e"`
+	Payload Payload `json:"p"`
+}
+
+type MessageWithConnection struct {
+	Message
+	Connection *Connection `json:"-"`
+}
+
+// Payload send by a websocket connection
+type Payload map[string]interface{}
+
 // OnConnectionClose is executed when a connection is closed
 type OnConnectionClose func(c *Connection)
 
-const PongTimeout = 60 * time.Second
-const PingInterval = (PongTimeout * 9) / 10
-const WriteTimeout = 10 * time.Second
-
 // New server constructor
-func New(config *ServerConfig, log Logger) (s *Server, err error) {
+func New(cnt ServiceContainer) *Server {
+	log := cnt.GetLogger()
+
 	if log == nil {
-		return nil, fmt.Errorf("cannot use a websocket server without a logger")
+		panic("websockets: service container has no logger")
 	}
 
-	if config == nil {
-		config = &ServerConfig{
+	cfg := cnt.GetWebsocketsConfig()
+
+	if cfg == nil {
+		cfg = &ServerConfig{
 			ReadBufferSize:  5,
 			WriteBufferSize: 5,
 		}
@@ -64,15 +75,15 @@ func New(config *ServerConfig, log Logger) (s *Server, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Server{
-		config:      config,
-		log:         log,
-		bus:         eventbus.New(nil, false),
 		lock:        sync.RWMutex{},
+		log:         log,
+		cfg:         cfg,
 		ctx:         ctx,
 		cancel:      cancel,
+		bus:         eventbus.New(nil, false),
 		connections: make(map[*Connection]bool),
 		batches:     make(map[string]bool),
-	}, nil
+	}
 }
 
 // Shutdown gracefully stops the server
@@ -111,7 +122,10 @@ func (s *Server) Handler(c *fiber.Ctx) error {
 		}()
 
 		_ = wc.SetReadDeadline(time.Now().Add(PongTimeout))
-		wc.SetPongHandler(func(string) error { _ = wc.SetReadDeadline(time.Now().Add(PongTimeout)); return nil })
+		wc.SetPongHandler(func(string) error {
+			_ = wc.SetReadDeadline(time.Now().Add(PongTimeout))
+			return nil
+		})
 
 		ctx, cancel := context.WithCancel(context.Background())
 		s.Connect(NewConnection(s, wc, ctx, cancel))
@@ -119,7 +133,7 @@ func (s *Server) Handler(c *fiber.Ctx) error {
 }
 
 // Subscribe to a websocket event
-func (s *Server) Subscribe(eventName string, handler func(msg *Message)) error {
+func (s *Server) Subscribe(eventName string, handler func(msg *MessageWithConnection)) error {
 	ch := make(chan eventbus.Event)
 
 	go s.handleSubscription(ch, handler)
@@ -130,19 +144,6 @@ func (s *Server) Subscribe(eventName string, handler func(msg *Message)) error {
 // Publish data to all matching connections
 func (s *Server) Publish(msg *Message, filter Filter) {
 	go publishToConnections(msg, filter, s.getConnections())
-}
-
-func (s *Server) getConnections() map[*Connection]bool {
-	connections := make(map[*Connection]bool)
-
-	s.lock.RLock()
-	defer s.lock.RUnlock()
-
-	for conn := range s.connections {
-		connections[conn] = true
-	}
-
-	return connections
 }
 
 // UseBatch registers a batch interval sender.
@@ -195,28 +196,12 @@ func (s *Server) GetBatches() []string {
 	return batches
 }
 
-func publishToConnections(msg *Message, filter Filter, connections map[*Connection]bool) {
-	if filter == nil {
-		for c := range connections {
-			c.SendMessage(msg)
-		}
-
-		return
-	}
-
-	for c := range connections {
-		if filter(c) {
-			c.SendMessage(msg)
-		}
-	}
-}
-
 // SetOnConnectionClose sets the function that is executed when a connection is closed
 func (s *Server) SetOnConnectionClose(fn OnConnectionClose) {
 	s.onConnectionClose = func(c *Connection) {
 		defer func() {
 			if r := recover(); r != nil {
-				s.log.Error("websocket: recovering connection close from panic: %v", r)
+				s.log.Error("websockets: recovering connection close from panic: %v", r)
 			}
 		}()
 
@@ -244,19 +229,6 @@ func (s *Server) CountConnections(filter Filter) int {
 	return counter
 }
 
-func (s *Server) addConnection(conn *Connection) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	s.connections[conn] = true
-}
-
-func (s *Server) removeConnection(conn *Connection) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	delete(s.connections, conn)
-}
-
 // Connect a websocket to the server
 func (s *Server) Connect(conn *Connection) {
 	if s.isStopped {
@@ -277,18 +249,60 @@ func (s *Server) Connect(conn *Connection) {
 	conn.cancelCtx()
 }
 
-func (s *Server) handleSubscription(ch chan eventbus.Event, handler func(msg *Message)) {
+func publishToConnections(msg *Message, filter Filter, connections map[*Connection]bool) {
+	if filter == nil {
+		for c := range connections {
+			c.SendMessage(msg)
+		}
+
+		return
+	}
+
+	for c := range connections {
+		if filter(c) {
+			c.SendMessage(msg)
+		}
+	}
+}
+
+func (s *Server) addConnection(conn *Connection) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.connections[conn] = true
+}
+
+func (s *Server) removeConnection(conn *Connection) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	delete(s.connections, conn)
+}
+
+func (s *Server) getConnections() map[*Connection]bool {
+	connections := make(map[*Connection]bool)
+
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	for conn := range s.connections {
+		connections[conn] = true
+	}
+
+	return connections
+}
+
+func (s *Server) handleSubscription(ch chan eventbus.Event, handler func(msg *MessageWithConnection)) {
 	for {
 		select {
 		case msg := <-ch:
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
-						s.log.Error("websocket: recovering subscription from panic: %v", r)
+						s.log.Error("websockets: recovering subscription from panic: %v", r)
 					}
 				}()
 
-				handler(msg.Data.(*Message))
+				handler(msg.Data.(*MessageWithConnection))
 			}()
 		case <-s.ctx.Done():
 			return

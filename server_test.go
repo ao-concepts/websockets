@@ -3,69 +3,63 @@
 package websockets_test
 
 import (
-	"net/http"
-	"strconv"
-	"sync"
-	"testing"
-	"time"
-
-	"github.com/ao-concepts/logging"
 	"github.com/ao-concepts/websockets"
+	"github.com/ao-concepts/websockets/mock"
 	"github.com/dchest/uniuri"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
+	"net/http"
+	"strconv"
+	"sync"
+	"testing"
+	"time"
 )
 
 func TestNewServer(t *testing.T) {
-	assert := assert.New(t)
-
 	// missing logger
-	s, err := websockets.New(nil, nil)
-	assert.NotNil(err)
+	assert.Panics(t, func() {
+		websockets.New(&mock.ServiceContainer{})
+	})
 
 	// with logger
-	s, err = websockets.New(nil, logging.New(logging.Debug, nil))
-	assert.Nil(err)
-	assert.NotNil(s)
+	assert.NotNil(t, websockets.New(mock.NewServiceContainer()))
 }
 
 func TestServer_Handler(t *testing.T) {
-	assert := assert.New(t)
 	app := fiber.New()
-	s, _ := websockets.New(nil, logging.New(logging.Debug, nil))
+	socket := websockets.New(mock.NewServiceContainer())
 
 	// no upgrade request
-	c := app.AcquireCtx(&fasthttp.RequestCtx{})
-	assert.NotNil(s.Handler(c))
+	ctx := app.AcquireCtx(&fasthttp.RequestCtx{})
+	assert.NotNil(t, socket.Handler(ctx))
 
 	// upgrade request
-	c = app.AcquireCtx(&fasthttp.RequestCtx{})
-	c.Request().Header.Add("Connection", "upgrade")
-	c.Request().Header.Add("Upgrade", "websocket")
-	c.Request().Header.Add("Sec-Websocket-Version", "13")
-	c.Request().Header.Add("Sec-WebSocket-Key", uniuri.NewLen(16))
-	assert.Nil(s.Handler(c))
+	ctx = app.AcquireCtx(&fasthttp.RequestCtx{})
+	ctx.Request().Header.Add("Connection", "upgrade")
+	ctx.Request().Header.Add("Upgrade", "websocket")
+	ctx.Request().Header.Add("Sec-Websocket-Version", "13")
+	ctx.Request().Header.Add("Sec-WebSocket-Key", uniuri.NewLen(16))
+	assert.Nil(t, socket.Handler(ctx))
 
 	// rest real dial
-	s, port := startServer(assert)
+	socket, port := mock.Server(t)
 
 	// no upgrade dial
 	_, err := http.Get("localhost:" + strconv.Itoa(port) + "/ws")
-	assert.NotNil(err)
+	assert.NotNil(t, err)
 
 	// successful dial
-	openConnection(port, assert)
+	mock.Connection(port, t)
 }
 
 func TestServer_BrokenPipe(t *testing.T) {
-	assert := assert.New(t)
-	s, port := startServer(assert)
+	socket, port := mock.Server(t)
 	ch := make(chan bool)
 	wg := sync.WaitGroup{}
 
-	s.SetOnConnectionClose(func(c *websockets.Connection) {
+	socket.SetOnConnectionClose(func(c *websockets.Connection) {
 		wg.Done()
 	})
 
@@ -75,7 +69,7 @@ func TestServer_BrokenPipe(t *testing.T) {
 			case <-ch:
 				return
 			default:
-				s.Publish(&websockets.Message{
+				socket.Publish(&websockets.Message{
 					Event: "test",
 				}, nil)
 			}
@@ -83,36 +77,35 @@ func TestServer_BrokenPipe(t *testing.T) {
 	}()
 
 	wg.Add(1)
-	c := openConnection(port, assert)
+	conn := mock.Connection(port, t)
 	time.Sleep(10 * time.Millisecond)
-	assert.Nil(c.Close())
+	assert.Nil(t, conn.Close())
 
 	time.Sleep(10 * time.Millisecond)
 	wg.Wait()
 
 	wg.Add(1)
-	c2 := openConnection(port, assert)
-	assert.NotNil(c2)
-	assert.Nil(c2.Close())
+	conn2 := mock.Connection(port, t)
+	assert.NotNil(t, conn2)
+	assert.Nil(t, conn2.Close())
 	ch <- true
 	wg.Wait()
 }
 
 func TestServer_Subscribe(t *testing.T) {
-	assert := assert.New(t)
-	s, port := startServer(assert)
+	socket, port := mock.Server(t)
 	time.Sleep(10 * time.Millisecond)
-	c := openConnection(port, assert)
+	conn := mock.Connection(port, t)
 	wg := sync.WaitGroup{}
 
-	assert.Nil(s.Subscribe("test", func(msg *websockets.Message) {
-		assert.Equal("test-data", msg.Payload["value"])
+	assert.Nil(t, socket.Subscribe("test", func(msg *websockets.MessageWithConnection) {
+		assert.Equal(t, "test-data", msg.Payload["value"])
 		wg.Done()
 	}))
 
 	wg.Add(1)
 
-	assert.Nil(c.WriteJSON(&websockets.Message{
+	assert.Nil(t, conn.WriteJSON(&websockets.Message{
 		Event: "test",
 		Payload: websockets.Payload{
 			"value": "test-data",
@@ -122,7 +115,7 @@ func TestServer_Subscribe(t *testing.T) {
 	wg.Wait()
 
 	// test panic recovery
-	assert.Nil(s.Subscribe("recover", func(msg *websockets.Message) {
+	assert.Nil(t, socket.Subscribe("recover", func(msg *websockets.MessageWithConnection) {
 		defer wg.Done()
 		if msg.Payload["value"] == "panic" {
 			panic("test")
@@ -130,7 +123,7 @@ func TestServer_Subscribe(t *testing.T) {
 	}))
 
 	wg.Add(1)
-	assert.Nil(c.WriteJSON(&websockets.Message{
+	assert.Nil(t, conn.WriteJSON(&websockets.Message{
 		Event: "recover",
 		Payload: websockets.Payload{
 			"value": "panic",
@@ -139,7 +132,7 @@ func TestServer_Subscribe(t *testing.T) {
 	wg.Wait()
 
 	wg.Add(1)
-	assert.Nil(c.WriteJSON(&websockets.Message{
+	assert.Nil(t, conn.WriteJSON(&websockets.Message{
 		Event: "recover",
 		Payload: websockets.Payload{
 			"value": "no-panic",
@@ -147,25 +140,24 @@ func TestServer_Subscribe(t *testing.T) {
 	}))
 	wg.Wait()
 
-	assert.Nil(c.Close())
+	assert.Nil(t, conn.Close())
 }
 
 func TestServer_Publish(t *testing.T) {
-	assert := assert.New(t)
-	s, port := startServer(assert)
-	c := openConnection(port, assert)
+	socket, port := mock.Server(t)
+	conn := mock.Connection(port, t)
 	wg := sync.WaitGroup{}
 
 	wg.Add(1)
 
 	go func(c *websocket.Conn) {
 		var msg websockets.Message
-		assert.Nil(c.ReadJSON(&msg))
-		assert.Equal("test-data", msg.Payload["value"])
+		assert.Nil(t, c.ReadJSON(&msg))
+		assert.Equal(t, "test-data", msg.Payload["value"])
 		wg.Done()
-	}(c)
+	}(conn)
 
-	s.Publish(&websockets.Message{
+	socket.Publish(&websockets.Message{
 		Event: "test",
 		Payload: websockets.Payload{
 			"value": "test-data",
@@ -175,21 +167,21 @@ func TestServer_Publish(t *testing.T) {
 	wg.Wait()
 
 	// filter (false)
-	c2 := openConnection(port, assert)
+	conn2 := mock.Connection(port, t)
 
-	go func(c *websocket.Conn) {
+	go func(conn *websocket.Conn) {
 		var msg websockets.Message
-		assert.Nil(c.ReadJSON(&msg))
-		assert.NotNil(c.ReadJSON(&msg))
-	}(c)
+		assert.Nil(t, conn.ReadJSON(&msg))
+		assert.NotNil(t, conn.ReadJSON(&msg))
+	}(conn)
 
-	go func(c *websocket.Conn) {
+	go func(conn *websocket.Conn) {
 		var msg websockets.Message
-		assert.Nil(c.ReadJSON(&msg))
-		assert.NotNil(c.ReadJSON(&msg))
-	}(c2)
+		assert.Nil(t, conn.ReadJSON(&msg))
+		assert.NotNil(t, conn.ReadJSON(&msg))
+	}(conn2)
 
-	s.Publish(&websockets.Message{
+	socket.Publish(&websockets.Message{
 		Event: "filter-test",
 		Payload: websockets.Payload{
 			"value": "filter-test-data",
@@ -199,7 +191,7 @@ func TestServer_Publish(t *testing.T) {
 	})
 
 	// filter (false)
-	s.Publish(&websockets.Message{
+	socket.Publish(&websockets.Message{
 		Event: "filter-test",
 		Payload: websockets.Payload{
 			"value": "filter-test-data",
@@ -210,120 +202,116 @@ func TestServer_Publish(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond)
 
-	assert.Nil(c.Close())
-	assert.Nil(c2.Close())
+	assert.Nil(t, conn.Close())
+	assert.Nil(t, conn2.Close())
 }
 
 func TestServer_CountConnections(t *testing.T) {
-	assert := assert.New(t)
+	socket, port := mock.Server(t)
+	assert.Equal(t, 0, socket.CountConnections(nil))
 
-	s, port := startServer(assert)
-
-	assert.Equal(0, s.CountConnections(nil))
-
-	c := openConnection(port, assert)
+	conn := mock.Connection(port, t)
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(1, s.CountConnections(nil))
+	assert.Equal(t, 1, socket.CountConnections(nil))
 
-	c2 := openConnection(port, assert)
+	conn2 := mock.Connection(port, t)
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(2, s.CountConnections(nil))
-	assert.Equal(0, s.CountConnections(func(c *websockets.Connection) bool {
+	assert.Equal(t, 2, socket.CountConnections(nil))
+	assert.Equal(t, 0, socket.CountConnections(func(conn *websockets.Connection) bool {
 		return false
 	}))
-	assert.Equal(2, s.CountConnections(func(c *websockets.Connection) bool {
+	assert.Equal(t, 2, socket.CountConnections(func(conn *websockets.Connection) bool {
 		return true
 	}))
 
-	assert.Nil(c.Close())
+	assert.Nil(t, conn.Close())
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(1, s.CountConnections(nil))
+	assert.Equal(t, 1, socket.CountConnections(nil))
 
-	assert.Nil(c2.Close())
+	assert.Nil(t, conn2.Close())
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(0, s.CountConnections(nil))
+	assert.Equal(t, 0, socket.CountConnections(nil))
 }
 
 func TestServer_SetOnConnectionClose(t *testing.T) {
-	assert := assert.New(t)
-
-	s, port := startServer(assert)
-	c := openConnection(port, assert)
+	socket, port := mock.Server(t)
+	conn := mock.Connection(port, t)
 
 	wg := sync.WaitGroup{}
 
-	s.SetOnConnectionClose(func(c *websockets.Connection) {
+	socket.SetOnConnectionClose(func(c *websockets.Connection) {
 		wg.Done()
 	})
 
 	wg.Add(1)
-	assert.Nil(c.Close())
+	assert.Nil(t, conn.Close())
 	wg.Wait()
 
 	// test panic
-	c2 := openConnection(port, assert)
+	conn2 := mock.Connection(port, t)
 
-	s.SetOnConnectionClose(func(c *websockets.Connection) {
+	socket.SetOnConnectionClose(func(c *websockets.Connection) {
 		defer wg.Done()
 		panic("test")
 	})
 
 	wg.Add(1)
-	assert.Nil(c2.Close())
+	assert.Nil(t, conn2.Close())
 	wg.Wait()
 }
 
 func TestServer_Shutdown(t *testing.T) {
-	assert := assert.New(t)
-
-	s, port := startServer(assert)
-	openConnection(port, assert)
-	openConnection(port, assert)
-	openConnection(port, assert)
+	socket, port := mock.Server(t)
+	mock.Connection(port, t)
+	mock.Connection(port, t)
+	mock.Connection(port, t)
 
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(3, s.CountConnections(nil))
+	assert.Equal(t, 3, socket.CountConnections(nil))
 
 	wg := sync.WaitGroup{}
 
-	s.SetOnConnectionClose(func(c *websockets.Connection) {
+	socket.SetOnConnectionClose(func(c *websockets.Connection) {
 		wg.Done()
 	})
 
-	assert.Nil(s.Subscribe("test", func(msg *websockets.Message) {}))
-	assert.Nil(s.Subscribe("test-2", func(msg *websockets.Message) {}))
+	assert.Nil(t, socket.Subscribe("test", func(msg *websockets.MessageWithConnection) {}))
+	assert.Nil(t, socket.Subscribe("test-2", func(msg *websockets.MessageWithConnection) {}))
 
 	wg.Add(3)
-	s.Shutdown()
+	socket.Shutdown()
 	wg.Wait()
 
-	assert.Equal(0, s.CountConnections(nil))
+	assert.Equal(t, 0, socket.CountConnections(nil))
+
+	socket.Connect(websockets.NewConnection(socket, nil, nil, func() {}))
+
+	assert.Equal(t, 0, socket.CountConnections(nil))
 }
 
 func TestServer_UseBatch(t *testing.T) {
-	assert := assert.New(t)
-	s, port := startServer(assert)
-	assert.Nil(s.UseBatch("test", time.Second))
+	socket, port := mock.Server(t)
+	assert.Nil(t, socket.UseBatch("test", time.Second))
 
-	c := openConnection(port, assert)
+	conn := mock.Connection(port, t)
 	wg := sync.WaitGroup{}
 
-	go func(c *websocket.Conn) {
+	go func(conn *websocket.Conn) {
 		var msg websockets.Message
-		assert.Nil(c.ReadJSON(&msg))
-		assert.Equal("batch-test", msg.Event)
-		assert.Len(msg.Payload["d"], 2)
+		assert.Nil(t, conn.ReadJSON(&msg))
+		assert.Equal(t, "batch-test", msg.Event)
+		assert.Len(t, msg.Payload["d"], 2)
 		wg.Done()
-	}(c)
+	}(conn)
 
 	wg.Add(1)
-	s.Publish(&websockets.Message{
+	socket.Publish(&websockets.Message{
 		Event: "test",
 		Payload: websockets.Payload{
 			"value": "test-data",
 		},
 	}, nil)
-	s.Publish(&websockets.Message{
+	socket.Publish(&websockets.Message{
 		Event: "test",
 		Payload: websockets.Payload{
 			"value": "test-data",
@@ -331,5 +319,5 @@ func TestServer_UseBatch(t *testing.T) {
 	}, nil)
 
 	wg.Wait()
-	assert.Nil(c.Close())
+	assert.Nil(t, conn.Close())
 }

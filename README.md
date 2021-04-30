@@ -5,11 +5,9 @@
 
 This module provides a websocket handler for usage with [fiber](https://github.com/gofiber/fiber). The handler is a abstraction layer that makes the handling of websocket messages easier.
 
-## Information
+## Contributing
 
-The ao-concepts ecosystem is still under active development and therefore the API of this module may have breaking changes until there is a first stable release.
-
-If you are interested in contributing to this project, feel free to open a issue to discus a new feature, enhancement or improvement. If you found a bug or security vulnerability in this package, please start a issue, or open a PR against `master`.
+If you are interested in contributing to this project, feel free to open an issue to discus a new feature, enhancement or improvement. If you found a bug or security vulnerability in this package, please start a issue, or open a PR against `master`.
 
 ## Installation
 
@@ -20,8 +18,8 @@ go get -u github.com/ao-concepts/websockets
 ## Usage
 
 ```go
-log := logging.New(logging.Debug, nil)
-server, err := websockets.New(nil, log)
+cnt := NewServiceContainer() // the service container has to implement the `websockets.ServiceContainer` interface.
+server, err := websockets.New(cnt)
 if err != nil {
     log.ErrFatal(err)
 }
@@ -75,6 +73,6 @@ This project uses some really great packages. Please make sure to check them out
 | Package                                                                   | Usage              |
 | ------------------------------------------------------------------------- | ------------------ |
 | [github.com/ao-concepts/eventbus](https://github.com/ao-concepts/storage) | Persistence helper |
-| [github.com/gofiber/fiber](https://github.com/gofiber/fiber)              | HTTP router        |
-| [github.com/jasonlvhit/gocron](https://github.com/jasonlvhit/gocron)      | Batch messages     |
+| [github.com/go-co-op/gocron](https://github.com/go-co-op/gocron)          | Batch messages     |
+| [github.com/gofiber/fiber](https://github.com/gofiber/fiber)                  | HTTP router        |
 | [github.com/stretchr/testify](https://github.com/stretchr/testify)        | Testing            |

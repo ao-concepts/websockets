@@ -32,13 +32,16 @@ type WebsocketConn interface {
 // Filter function that checks if a connection matches some criteria
 type Filter func(c *Connection) bool
 
+// OnEndFunc function that is executed on connection ends
+type OnEndFunc = func(c *Connection)
+
 // NewConnection constructor
 func NewConnection(s *Server, wc WebsocketConn, ctx context.Context, cancel func()) *Connection {
 	c := &Connection{
 		s:         s,
 		wc:        wc,
 		data:      make(map[string]interface{}),
-		write:     make(chan Message, s.config.WriteBufferSize),
+		write:     make(chan Message, s.cfg.WriteBufferSize),
 		lock:      sync.RWMutex{},
 		batches:   make(map[string]*Batch),
 		isOpen:    true,
@@ -147,13 +150,11 @@ func (c *Connection) sendBatch(event string) {
 	}
 }
 
-type OnEndFunc = func(c *Connection)
-
 // returns false on errors
 func (c *Connection) listenForMessages(wc WebsocketConn) {
 	defer func() {
 		if r := recover(); r != nil {
-			c.s.log.Warn("websocket: ending connection read after panic: %v", r)
+			c.s.log.Error("websockets: ending connection read after panic: %v", r)
 		}
 	}()
 	defer c.cancelCtx()
@@ -161,10 +162,10 @@ func (c *Connection) listenForMessages(wc WebsocketConn) {
 	for {
 		select {
 		case <-c.ctx.Done():
-			c.s.log.Info("Websocket closed: stopping reader")
+			c.s.log.Info("websockets: websocket closed - stopping reader")
 			return
 		default:
-			var msg Message
+			var msg MessageWithConnection
 
 			if err := wc.ReadJSON(&msg); err != nil {
 				c.s.log.ErrInfo(err)
@@ -187,7 +188,7 @@ func (c *Connection) publishMessages(wc WebsocketConn) {
 	ticker := time.NewTicker(PingInterval)
 	defer func() {
 		if r := recover(); r != nil {
-			c.s.log.Warn("websocket: ending connection write after panic: %v", r)
+			c.s.log.Error("websockets: ending connection write after panic: %v", r)
 		}
 	}()
 	defer c.cancelCtx()
@@ -204,7 +205,7 @@ func (c *Connection) publishMessages(wc WebsocketConn) {
 				return
 			}
 		case <-c.ctx.Done():
-			c.s.log.Info("Websocket closed: stopping writer")
+			c.s.log.Info("websockets: websocket closed - stopping writer")
 			return
 		}
 	}
