@@ -136,7 +136,7 @@ func (s *Server) Handler(c *fiber.Ctx) error {
 func (s *Server) Subscribe(eventName string, handler func(msg *MessageWithConnection)) error {
 	ch := make(chan eventbus.Event)
 
-	go s.handleSubscription(ch, handler)
+	go s.handleSubscription(ch, eventName, handler)
 
 	return s.bus.Subscribe(eventName, ch)
 }
@@ -291,14 +291,14 @@ func (s *Server) getConnections() map[*Connection]bool {
 	return connections
 }
 
-func (s *Server) handleSubscription(ch chan eventbus.Event, handler func(msg *MessageWithConnection)) {
+func (s *Server) handleSubscription(ch chan eventbus.Event, eventName string, handler func(msg *MessageWithConnection)) {
 	for {
 		select {
 		case msg := <-ch:
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
-						s.log.Error("websockets: recovering subscription from panic: %v", r)
+						s.log.Error("websockets: recovering subscription '%s' from panic: %v", eventName, r)
 					}
 				}()
 

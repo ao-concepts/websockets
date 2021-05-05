@@ -1,3 +1,8 @@
+# 1.0.1
+
+*   (internal) Enhance subscription panic error message.
+
+
 # 1.0.0
 
 *   (bc) Changed signature of `New` function to use a `ServiceContainer` interface.
